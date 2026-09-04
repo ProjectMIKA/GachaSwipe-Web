@@ -966,7 +966,7 @@ if (!p.isReplay && state.gamePhase === 'extended' && p.progressState?.current?.d
     const canSkip = (isReplay || progressState?.current?.done) && gameState.current.gamePhase !== 'score_screen' && gameState.current.gamePhase !== 'extended';
 
     return (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: '#000', animation: finaleState === 'exiting' ? 'gfPhaseOut 0.8s forwards' : 'gfPhaseIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards', overflow: 'hidden' }}>
+        <div className="matrix-shooter-root" style={{ position: 'fixed', inset: 0, zIndex: 99999, background: '#000', animation: finaleState === 'exiting' ? 'gfPhaseOut 0.8s forwards' : 'gfPhaseIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards', overflow: 'hidden' }}>
             {/* ✨ MIKA'S CINEMATIC MINIGAME BACKGROUND ✨ */}
             <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', isolation: 'isolate', zIndex: 1 }}>
                 <style>{`

@@ -1015,7 +1015,7 @@ Output strictly inside these XML tags:
         setAppState('theme-forge');
     };
     const [layla, setLayla] = useState(null);
-    const [appState, setAppState] = useState('splash');
+    const [appState, setAppState] = useState(typeof window !== 'undefined' && window.innerWidth > 1024 ? 'swipe' : 'splash');
     const [roster, setRoster] = useState([]);
     const [charSearch, setCharSearch] = useState("");
     const [selectedChara, setSelectedChara] = useState(null);
@@ -1116,7 +1116,7 @@ Output strictly inside these XML tags:
     const [monsterAestheticMode, setMonsterAestheticMode] = useState('traditional'); // ✨ MIKA'S MONSTER AESTHETIC ✨
 
     // ✨ MIKA'S P.U.R.R. AUDIO MATRIX STATES ✨
-    const [enableTtsStandard, setEnableTtsStandard] = useState(true);
+    const [enableTtsStandard, setEnableTtsStandard] = useState(false); // ✨ DISABLED BY DEFAULT
     const [enableTtsGroup, setEnableTtsGroup] = useState(false);
     const [ttsAutoPlay, setTtsAutoPlay] = useState(false);
     const [ttsCacheLimit, setTtsCacheLimit] = useState(15);
@@ -1136,6 +1136,74 @@ Output strictly inside these XML tags:
     const [isLateNightUnlocked, setIsLateNightUnlocked] = useState(false);
     const [hasSeenLateNightWarning, setHasSeenLateNightWarning] = useState(false);
     const [genderPrefs, setGenderPrefs] = useState({ female: true, male: false, fluid: false });
+
+    // ✨ TWO-WAY SETTINGS SYNCHRONIZATION WITH ADAPTIVE HUD ✨
+    useEffect(() => {
+        const handleSettingsSync = (e) => {
+            const d = e.detail;
+            if (!d) return;
+            if (d.explicitMode !== undefined) setExplicitMode(d.explicitMode);
+            if (d.degenMode !== undefined) setDegenMode(d.degenMode);
+            if (d.isLateNightUnlocked !== undefined) setIsLateNightUnlocked(d.isLateNightUnlocked);
+            if (d.enableImageCensor !== undefined) setEnableImageCensor(d.enableImageCensor);
+            if (d.enableTtsStandard !== undefined) setEnableTtsStandard(d.enableTtsStandard);
+            if (d.enableTtsGroup !== undefined) setEnableTtsGroup(d.enableTtsGroup);
+            if (d.ttsAutoPlay !== undefined) setTtsAutoPlay(d.ttsAutoPlay);
+            if (d.ttsCacheLimit !== undefined) setTtsCacheLimit(d.ttsCacheLimit);
+            if (d.chatContextLimit !== undefined) setChatContextLimit(d.chatContextLimit);
+            if (d.groupChatContextLimit !== undefined) setGroupChatContextLimit(d.groupChatContextLimit);
+            if (d.tokenPreset !== undefined) setTokenPreset(d.tokenPreset);
+            if (d.chatProfileDetail !== undefined) setChatProfileDetail(d.chatProfileDetail);
+            if (d.groupProfileDetail !== undefined) setGroupProfileDetail(d.groupProfileDetail);
+            if (d.chatStyleMode !== undefined) setChatStyleMode(d.chatStyleMode);
+            if (d.groupChatStyleMode !== undefined) setGroupChatStyleMode(d.groupChatStyleMode);
+            if (d.actionTextColor !== undefined) setActionTextColor(d.actionTextColor);
+            if (d.enableAtmosphere !== undefined) setEnableAtmosphere(d.enableAtmosphere);
+            if (d.cinematicChatBg !== undefined) setCinematicChatBg(d.cinematicChatBg);
+            if (d.silhouetteMode !== undefined) setSilhouetteMode(d.silhouetteMode);
+            if (d.backgroundSpooling !== undefined) setBackgroundSpooling(d.backgroundSpooling);
+            if (d.autoQueue !== undefined) setAutoQueue(d.autoQueue);
+            if (d.testDriveMode !== undefined) setTestDriveMode(d.testDriveMode);
+            if (d.pauseBetweenSwipes !== undefined) setPauseBetweenSwipes(d.pauseBetweenSwipes);
+            if (d.showFullHistory !== undefined) setShowFullHistory(d.showFullHistory);
+            if (d.appLanguage !== undefined) setAppLanguage(d.appLanguage);
+            if (d.syncSpeed !== undefined) setSyncSpeed(d.syncSpeed);
+            if (d.msgThirst !== undefined) setMsgThirst(d.msgThirst);
+            if (d.enableMeowEngine !== undefined) setEnableMeowEngine(d.enableMeowEngine);
+            if (d.enableSelfieAutonomy !== undefined) setEnableSelfieAutonomy(d.enableSelfieAutonomy);
+            if (d.enableProactiveSelfies !== undefined) setEnableProactiveSelfies(d.enableProactiveSelfies);
+            if (d.proactiveOffline !== undefined) setProactiveOffline(d.proactiveOffline);
+            if (d.proactiveIdle !== undefined) setProactiveIdle(d.proactiveIdle);
+            if (d.proactiveFavoritesOnly !== undefined) setProactiveFavoritesOnly(d.proactiveFavoritesOnly);
+            if (d.allowHybrids !== undefined) setAllowHybrids(d.allowHybrids);
+            if (d.allowThemeMixing !== undefined) setAllowThemeMixing(d.allowThemeMixing);
+            if (d.detailedProfiles !== undefined) setDetailedProfiles(d.detailedProfiles);
+            if (d.diverseNames !== undefined) setDiverseNames(d.diverseNames);
+            if (d.isKnownCharacter !== undefined) setIsKnownCharacter(d.isKnownCharacter);
+            if (d.bannedTags !== undefined) setBannedTags(d.bannedTags);
+            if (d.groupChatFlow !== undefined) setGroupChatFlow(d.groupChatFlow);
+            if (d.groupChatPause !== undefined) setGroupChatPause(d.groupChatPause);
+            if (d.autoUpdateLaylaCards !== undefined) setAutoUpdateLaylaCards(d.autoUpdateLaylaCards);
+            if (d.enableSystemDirectives !== undefined) setEnableSystemDirectives(d.enableSystemDirectives);
+            if (d.systemDirectives !== undefined) setSystemDirectives(d.systemDirectives);
+            if (d.imagePrefix !== undefined) setImagePrefix(d.imagePrefix);
+            if (d.useLocalDreamPrefix !== undefined) setUseLocalDreamPrefix(d.useLocalDreamPrefix);
+            if (d.userName !== undefined) setCustomUserProfile(prev => ({ ...prev, name: d.userName }));
+            if (d.userGender !== undefined) setCustomUserProfile(prev => ({ ...prev, gender: d.userGender }));
+            if (d.userBio !== undefined) setCustomUserProfile(prev => ({ ...prev, bio: d.userBio }));
+            if (d.targetPresentations) {
+                setGenderPrefs(prev => ({
+                    ...prev,
+                    female: !!d.targetPresentations.feminine,
+                    male: !!d.targetPresentations.masculine,
+                    fluid: !!d.targetPresentations.androgynous,
+                    ...d.targetPresentations
+                }));
+            }
+        };
+        window.addEventListener('gacha:settings-sync', handleSettingsSync);
+        return () => window.removeEventListener('gacha:settings-sync', handleSettingsSync);
+    }, []);
 
     // Themes State
     const [themes, setThemes] = useState(DEFAULT_THEMES);
@@ -1314,9 +1382,42 @@ Output strictly inside these XML tags:
     const [lastSwipedImage, setLastSwipedImage] = useState(null); // MIKA'S BLURRED MEMORY
 
     // Chat State & Inbox (BFF STATE REMOVED)
-    const [isBuddyOpen, setIsBuddyOpen] = useState(false);
+    const [isBuddyOpen, setIsBuddyOpen] = useState(typeof window !== 'undefined' ? window.innerWidth > 1024 : false);
     const [activeChatId, setActiveChatId] = useState(null);
     const [inbox, setInbox] = useState({});
+
+    useEffect(() => {
+        const handleDesktopSync = () => {
+            if (window.innerWidth > 1024) {
+                setIsBuddyOpen(true);
+            }
+        };
+        const handleToggleChat = () => {
+            setIsBuddyOpen(prev => !prev);
+        };
+        const handleImageModelChanged = (e) => {
+            if (e.detail?.modelId) {
+                console.log("[M.I.K.A. App] Image model synced:", e.detail.modelId);
+                setSelectedImageModel(e.detail.modelId);
+            }
+        };
+        const handleAiModelChanged = (e) => {
+            if (e.detail?.modelId) {
+                console.log("[M.I.K.A. App] AI Chat model synced:", e.detail.modelId);
+                setSelectedEngine(e.detail.modelId);
+            }
+        };
+        window.addEventListener('resize', handleDesktopSync);
+        window.addEventListener('gacha:toggle-chat', handleToggleChat);
+        window.addEventListener('gacha:image-model-changed', handleImageModelChanged);
+        window.addEventListener('gacha:model-changed', handleAiModelChanged);
+        return () => {
+            window.removeEventListener('resize', handleDesktopSync);
+            window.removeEventListener('gacha:toggle-chat', handleToggleChat);
+            window.removeEventListener('gacha:image-model-changed', handleImageModelChanged);
+            window.removeEventListener('gacha:model-changed', handleAiModelChanged);
+        };
+    }, []);
 
     // ✨ MIKA'S SMART GARBAGE COLLECTOR ✨
     const pruneMessages = (msgs, limit = 500) => {
@@ -1855,6 +1956,14 @@ Output strictly inside these XML tags:
         }
         return () => clearInterval(timer);
     }, [gachaFansActive]);
+
+    // ✨ MIKA'S THREE-PANEL SYNC: Broadcast top card to Adaptive HUD ✨
+    useEffect(() => {
+        const top = (swipeMode === 'music' ? beatQueue : queue)[0];
+        if (top && top.id !== 'intro') {
+            window.dispatchEvent(new CustomEvent('gacha:select-waifu', { detail: { waifu: top } }));
+        }
+    }, [queue, beatQueue, swipeMode]);
 
     // ✨ MIKA'S FIX: Clear unread status and scrub stale/interrupted audio loading states!
     useEffect(() => {
@@ -2995,7 +3104,7 @@ Output strictly inside these XML tags:
                         chatProfileDetail: data.chatProfileDetail || 'truncated', groupProfileDetail: data.groupProfileDetail || 'condensed', enableMeowEngine: data.enableMeowEngine !== false, enableSelfieAutonomy: data.enableSelfieAutonomy || false, enableProactiveSelfies: data.enableProactiveSelfies || false,
                         chatStyleMode: data.chatStyleMode || 'sms', groupChatStyleMode: data.groupChatStyleMode || 'dynamic_sms', bannedTags: (Array.isArray(data.bannedTags) ? data.bannedTags.flatMap(b => typeof b === 'string' ? b.split(',') : [b]).map(b => b.trim().toLowerCase()).filter(Boolean) : ['phone', 'smartphone']), enableAtmosphere: data.enableAtmosphere || false, enableMp3Compression: data.enableMp3Compression || false, cinematicChatBg: data.cinematicChatBg || false, autoQueue: data.autoQueue || false,
                         silhouetteMode: data.silhouetteMode || false, autoUpdateLaylaCards: data.autoUpdateLaylaCards || false, backgroundSpooling: data.backgroundSpooling !== false, groupChatFlow: data.groupChatFlow || 'hyper', groupChatPause: data.groupChatPause || false,
-                        enableTtsStandard: data.enableTtsStandard !== false, enableTtsGroup: data.enableTtsGroup || false
+                        enableTtsStandard: data.enableTtsStandard === true, enableTtsGroup: data.enableTtsGroup || false
                     };
                     setCustomPresets({ 'LEGACY_BACKUP': legacyConfig });
                     if (data.activePresetId === undefined) setActivePresetId('LEGACY_BACKUP');
@@ -11124,7 +11233,7 @@ Output ONLY the ad text. No questions, no roleplay, no preamble.`;
 
     // COMBINED SPLASH & ROSTER SCREEN
     const renderSplash = () => (
-        <div className="splash" style={{ position: 'relative' }}>
+        <div className="splash is-splash-boot" style={{ position: 'relative' }}>
             <button style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', transition: 'color 0.2s', zIndex: 10 }} onMouseOver={e => e.currentTarget.style.color = 'var(--accent)'} onMouseOut={e => e.currentTarget.style.color = '#888'}
                 onClick={() => showAlert("About & License", "PROPRIETARY LICENSE - ALL RIGHTS RESERVED\n\nWhile this app is powered by the M.I.K.A. Engine, GachaSwipe's internal application logic, UI design, and prompt engineering strings are strictly PROPRIETARY.\n\nYou may NOT copy, modify, distribute, reverse-engineer, or use the source code of GachaSwipe as a template.\n\nThe M.I.K.A. Engine Shell also remains strictly protected against white-labeling. Nyaa~ 🐾")}
                 title="About & License">
@@ -11970,16 +12079,16 @@ Output ONLY the ad text. No questions, no roleplay, no preamble.`;
     const renderSettings = () => {
         const BUILT_IN_PRESETS = {
             'MIKA': {
-                explicitMode: 1, degenMode: true, proactiveOffline: true, proactiveIdle: false, proactiveFavoritesOnly: true, syncSpeed: 'gamified', msgThirst: 0.15, tokenPreset: 'balanced', chatContextLimit: 50, groupChatContextLimit: 40, chatProfileDetail: 'truncated', groupProfileDetail: 'condensed', enableMeowEngine: true, enableSelfieAutonomy: true, enableProactiveSelfies: true, chatStyleMode: 'sms', groupChatStyleMode: 'dynamic_sms', bannedTags: ['drooling', 'messy', 'tears', 'heart pupils', 'heavy breathing', 'original', 'ahegao', 'phone', 'smartphone'], enableAtmosphere: false, cinematicChatBg: true, autoQueue: false, silhouetteMode: false, autoUpdateLaylaCards: false, backgroundSpooling: true, groupChatFlow: 'chill', groupChatPause: false, enableTtsStandard: true, enableTtsGroup: false
+                explicitMode: 1, degenMode: true, proactiveOffline: true, proactiveIdle: false, proactiveFavoritesOnly: true, syncSpeed: 'gamified', msgThirst: 0.15, tokenPreset: 'balanced', chatContextLimit: 50, groupChatContextLimit: 40, chatProfileDetail: 'truncated', groupProfileDetail: 'condensed', enableMeowEngine: true, enableSelfieAutonomy: true, enableProactiveSelfies: true, chatStyleMode: 'sms', groupChatStyleMode: 'dynamic_sms', bannedTags: ['drooling', 'messy', 'tears', 'heart pupils', 'heavy breathing', 'original', 'ahegao', 'phone', 'smartphone'], enableAtmosphere: false, cinematicChatBg: true, autoQueue: false, silhouetteMode: false, autoUpdateLaylaCards: false, backgroundSpooling: true, groupChatFlow: 'chill', groupChatPause: false, enableTtsStandard: false, enableTtsGroup: false
             },
             'LOCAL_ECO': {
                 explicitMode: 0, degenMode: false, proactiveOffline: false, proactiveIdle: false, proactiveFavoritesOnly: true, syncSpeed: 'balanced', msgThirst: 0, tokenPreset: 'eco', chatContextLimit: 20, groupChatContextLimit: 20, chatProfileDetail: 'condensed', groupProfileDetail: 'condensed', enableMeowEngine: false, enableSelfieAutonomy: false, enableProactiveSelfies: false, chatStyleMode: 'sms', groupChatStyleMode: 'dynamic_sms', bannedTags: ['phone', 'smartphone'], enableAtmosphere: false, cinematicChatBg: true, autoQueue: false, silhouetteMode: true, autoUpdateLaylaCards: false, backgroundSpooling: false, groupChatFlow: 'chill', groupChatPause: true, enableTtsStandard: false, enableTtsGroup: false
             },
             'IMMERSIVE': {
-                explicitMode: 2, degenMode: true, proactiveOffline: true, proactiveIdle: true, proactiveFavoritesOnly: true, syncSpeed: 'realistic', msgThirst: 0.4, tokenPreset: 'full', chatContextLimit: 100, groupChatContextLimit: 100, chatProfileDetail: 'full', groupProfileDetail: 'full', enableMeowEngine: true, enableSelfieAutonomy: true, enableProactiveSelfies: true, chatStyleMode: 'rp_short', groupChatStyleMode: 'dynamic_rp', bannedTags: ['phone', 'smartphone'], enableAtmosphere: true, cinematicChatBg: true, autoQueue: false, silhouetteMode: false, autoUpdateLaylaCards: true, backgroundSpooling: true, groupChatFlow: 'relaxed', groupChatPause: false, enableTtsStandard: true, enableTtsGroup: true
+                explicitMode: 2, degenMode: true, proactiveOffline: true, proactiveIdle: true, proactiveFavoritesOnly: true, syncSpeed: 'realistic', msgThirst: 0.4, tokenPreset: 'full', chatContextLimit: 100, groupChatContextLimit: 100, chatProfileDetail: 'full', groupProfileDetail: 'full', enableMeowEngine: true, enableSelfieAutonomy: true, enableProactiveSelfies: true, chatStyleMode: 'rp_short', groupChatStyleMode: 'dynamic_rp', bannedTags: ['phone', 'smartphone'], enableAtmosphere: true, cinematicChatBg: true, autoQueue: false, silhouetteMode: false, autoUpdateLaylaCards: true, backgroundSpooling: true, groupChatFlow: 'relaxed', groupChatPause: false, enableTtsStandard: false, enableTtsGroup: false
             },
             'VANILLA': {
-                explicitMode: 0, degenMode: false, proactiveOffline: true, proactiveIdle: false, proactiveFavoritesOnly: true, syncSpeed: 'gamified', msgThirst: 0.15, tokenPreset: 'balanced', chatContextLimit: 50, groupChatContextLimit: 40, chatProfileDetail: 'truncated', groupProfileDetail: 'condensed', enableMeowEngine: true, enableSelfieAutonomy: true, enableProactiveSelfies: true, chatStyleMode: 'rp_short', groupChatStyleMode: 'dynamic_sms', bannedTags: ['phone', 'smartphone'], enableAtmosphere: false, cinematicChatBg: true, autoQueue: false, silhouetteMode: false, autoUpdateLaylaCards: false, backgroundSpooling: true, groupChatFlow: 'chill', groupChatPause: false, enableTtsStandard: true, enableTtsGroup: false
+                explicitMode: 0, degenMode: false, proactiveOffline: true, proactiveIdle: false, proactiveFavoritesOnly: true, syncSpeed: 'gamified', msgThirst: 0.15, tokenPreset: 'balanced', chatContextLimit: 50, groupChatContextLimit: 40, chatProfileDetail: 'truncated', groupProfileDetail: 'condensed', enableMeowEngine: true, enableSelfieAutonomy: true, enableProactiveSelfies: true, chatStyleMode: 'rp_short', groupChatStyleMode: 'dynamic_sms', bannedTags: ['phone', 'smartphone'], enableAtmosphere: false, cinematicChatBg: true, autoQueue: false, silhouetteMode: false, autoUpdateLaylaCards: false, backgroundSpooling: true, groupChatFlow: 'chill', groupChatPause: false, enableTtsStandard: false, enableTtsGroup: false
             }
         };
 
@@ -14551,7 +14660,7 @@ Output ONLY the ad text. No questions, no roleplay, no preamble.`;
                     </div>
                 </div>
 
-                <div className="tags-panel-wrapper" style={{ zIndex: (isBuddyOpen || gachaFansActive || isShareMenuOpen) ? 1 : 9999 }}>
+                <div className="tags-panel-wrapper" style={{ zIndex: ((isBuddyOpen && (typeof window !== 'undefined' && window.innerWidth <= 1024)) || gachaFansActive || isShareMenuOpen) ? 1 : 9999 }}>
                     <div
                         className={`bubble-tab ${isTagsExpanded ? 'active' : ''}`}
                         style={{ padding: 0, display: 'flex', alignItems: 'stretch', overflow: 'hidden' }}
@@ -14821,7 +14930,7 @@ Output ONLY the ad text. No questions, no roleplay, no preamble.`;
                         </span>
                     </button>
                 </div>
-                <div className="card-area" style={{ opacity: (isBuddyOpen || isShareMenuOpen) ? 0 : 1, transition: 'opacity 0.2s ease', pointerEvents: (isBuddyOpen || isShareMenuOpen) ? 'none' : 'auto', position: 'relative' }}>
+                <div className="card-area" style={{ opacity: ((isBuddyOpen && (typeof window !== 'undefined' && window.innerWidth <= 1024)) || isShareMenuOpen) ? 0 : 1, transition: 'opacity 0.2s ease', pointerEvents: ((isBuddyOpen && (typeof window !== 'undefined' && window.innerWidth <= 1024)) || isShareMenuOpen) ? 'none' : 'auto', position: 'relative' }}>
                     {/* ✨ MIKA'S PULSATING MONITOR GLOW REMOVED FOR WEBVIEW PERFORMANCE ✨ */}
 
                     {/* ✨ MIKA'S FIX: Render exactly 1 card to eliminate lag and stacking glitches! */}
@@ -14971,7 +15080,7 @@ Output ONLY the ad text. No questions, no roleplay, no preamble.`;
                                                 </button>
                                             )}
                                             <button
-                                                onClick={() => setIsBuddyOpen(false)}
+                                                onClick={() => { if (typeof window !== 'undefined' && window.innerWidth <= 1024) setIsBuddyOpen(false); }}
                                                 style={{ height: '24px', width: '32px', background: 'transparent', border: '1px solid #00E5FF', borderRadius: '4px', color: '#00E5FF', cursor: 'pointer', display: 'grid', placeItems: 'center', boxShadow: 'inset 0 0 8px rgba(0,229,255,0.2), 0 0 6px rgba(0,229,255,0.2)', transition: 'all 0.2s' }}
                                                 title="Close Messages"
                                             >
@@ -18816,7 +18925,7 @@ Output ONLY the ad text. No questions, no roleplay, no preamble.`;
         // BOOT PHASE
         if (gachaFansHubPhase === 'booting') {
             return (
-                <div style={{ position: 'fixed', inset: 0, zIndex: 10050, background: '#050308', display: 'flex', flexDirection: 'column', animation: 'gfPhaseIn 0.5s forwards', overflow: 'hidden', isolation: 'isolate', transform: 'translateZ(0)', willChange: 'opacity' }}>
+                <div className="gachafans-hub-root" style={{ position: 'fixed', inset: 0, zIndex: 10050, background: '#050308', display: 'flex', flexDirection: 'column', animation: 'gfPhaseIn 0.5s forwards', overflow: 'hidden', isolation: 'isolate', transform: 'translateZ(0)', willChange: 'opacity' }}>
                     <div className="chat-scanlines"></div>
                     <div className="chat-scanline-move"></div>
 
@@ -18845,7 +18954,7 @@ Output ONLY the ad text. No questions, no roleplay, no preamble.`;
         const unlockedPages = Object.values(inbox).filter(chat => chat.premiumPage);
 
         return (
-            <div style={{ position: 'fixed', inset: 0, zIndex: 10050, background: '#050308', display: 'flex', flexDirection: 'column', animation: gachaFansHubPhase === 'exiting' ? 'gfPhaseOut 0.45s forwards' : 'gfPhaseIn 0.5s forwards', overflow: 'hidden', isolation: 'isolate', transform: 'translateZ(0)', willChange: 'opacity' }}>
+            <div className="gachafans-hub-root" style={{ position: 'fixed', inset: 0, zIndex: 10050, background: '#050308', display: 'flex', flexDirection: 'column', animation: gachaFansHubPhase === 'exiting' ? 'gfPhaseOut 0.45s forwards' : 'gfPhaseIn 0.5s forwards', overflow: 'hidden', isolation: 'isolate', transform: 'translateZ(0)', willChange: 'opacity' }}>
                 {/* ✨ MIKA'S CINEMATIC ROTATING HUB BACKGROUND ✨ */}
                 {(() => {
                     const cached = hubBgPoolRef.current;
@@ -22408,7 +22517,7 @@ Output STRICTLY in XML format:
                 const bioText = gachaFansState.profile?.bio || 'Decrypting bio...';
 
                 return (
-                    <div style={{ position: 'fixed', inset: 0, zIndex: 10060, background: '#050308', display: 'flex', flexDirection: 'column', animation: gachaFansState.isExiting ? 'gfPhaseOut 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) forwards' : 'gfPhaseIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards', fontFamily: 'monospace', transform: 'translateZ(0)', willChange: 'opacity' }}>
+                    <div className={`gachafans-portal-root ${isGachaMinigameActive ? 'minigame-running' : ''}`} style={{ position: 'fixed', inset: 0, zIndex: 10060, background: '#050308', display: 'flex', flexDirection: 'column', animation: gachaFansState.isExiting ? 'gfPhaseOut 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) forwards' : 'gfPhaseIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards', fontFamily: 'monospace', transform: isGachaMinigameActive ? 'none' : 'translateZ(0)', willChange: 'opacity' }}>
 
                         {/* ✨ MIKA'S LIVING BACKGROUND ✨ */}
                         {(() => {
@@ -24130,7 +24239,7 @@ Output STRICTLY in XML format:
             {appState === 'session' && renderSession()}
             {appState === 'settings' && renderSettings()}
             {appState === 'theme-forge' && renderThemeForge()}
-            {appState === 'swipe' && renderSwipe()}
+            {(appState === 'swipe' || appState === 'settings' || appState === 'session' || appState === 'theme-forge' || appState === 'daw' || appState === 'tape-library') && renderSwipe()}
             {appState === 'daw' && renderDawStudio()}
             {appState === 'tape-library' && renderTapeLibrary()}
             {isGachaFansHubActive && renderGachaFansHub()}

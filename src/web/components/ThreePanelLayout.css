@@ -1,0 +1,627 @@
+/* ==========================================================================
+   🐾 M.I.K.A. OS - THREE-PANEL DESKTOP DATING HUD SYSTEM
+   ========================================================================== */
+
+:root {
+  --neon-cyan: #00e5ff;
+  --neon-green: #00ff9d;
+  --neon-pink: #ff107a;
+  --neon-purple: #b533ff;
+  --neon-amber: #ffd700;
+  --bg-deep: #050308;
+  --bg-panel: rgba(10, 8, 18, 0.94);
+  --border-neon: rgba(0, 229, 255, 0.25);
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+/* Base Viewport Container */
+.three-panel-root {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  background: var(--bg-deep);
+  color: #ebe3d6;
+  font-family: var(--font-mono);
+  box-sizing: border-box;
+
+  /* Desktop Grid Layout: Left (minmax 320px, 1fr) | Rail 2px | Center 440px | Rail 2px | Right (minmax 320px, 1fr) */
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) 2px 440px 2px minmax(320px, 1fr);
+  grid-template-rows: 100vh;
+}
+
+/* Ambient Background Grid */
+.three-panel-root::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(0, 229, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.02) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Ambient Scanlines */
+.three-panel-root::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.25) 2px,
+    rgba(0, 0, 0, 0.25) 4px
+  );
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.65;
+}
+
+/* --------------------------------------------------------------------------
+   LEFT PANEL (Persistent Chat)
+   -------------------------------------------------------------------------- */
+.panel-left {
+  position: relative;
+  z-index: 2;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-right: 1px solid rgba(0, 229, 255, 0.08);
+}
+
+/* --------------------------------------------------------------------------
+   CYBERPUNK GUTTER RAILS (2px Neon Dividers)
+   -------------------------------------------------------------------------- */
+.cyber-gutter {
+  position: relative;
+  z-index: 5;
+  width: 2px;
+  height: 100vh;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(0, 255, 157, 0.4) 15%,
+    var(--neon-green) 40%,
+    var(--neon-cyan) 60%,
+    rgba(0, 229, 255, 0.4) 85%,
+    transparent 100%
+  );
+  box-shadow: 
+    0 0 10px rgba(0, 255, 157, 0.4),
+    0 0 20px rgba(0, 229, 255, 0.25);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Glowing Neon Pulse travelling down the rail */
+.gutter-light-pulse {
+  position: absolute;
+  top: 0;
+  left: -2px;
+  width: 6px;
+  height: 80px;
+  background: linear-gradient(180deg, transparent, #ffffff, var(--neon-cyan), transparent);
+  border-radius: 3px;
+  filter: drop-shadow(0 0 8px var(--neon-cyan));
+  animation: railPulse 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.cyber-gutter.right .gutter-light-pulse {
+  animation-delay: 3s;
+  background: linear-gradient(180deg, transparent, #ffffff, var(--neon-green), transparent);
+  filter: drop-shadow(0 0 8px var(--neon-green));
+}
+
+@keyframes railPulse {
+  0% { top: -100px; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 105%; opacity: 0; }
+}
+
+/* Gutter Bracket Accents & Markers */
+.gutter-marker {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 3, 8, 0.9);
+  border: 1px solid var(--neon-cyan);
+  border-radius: 2px;
+  box-shadow: 0 0 6px var(--neon-cyan);
+  color: var(--neon-cyan);
+  font-size: 8px;
+  font-weight: 900;
+  margin: 12px 0;
+  letter-spacing: -0.5px;
+}
+
+.gutter-marker.green {
+  border-color: var(--neon-green);
+  color: var(--neon-green);
+  box-shadow: 0 0 6px var(--neon-green);
+}
+
+.gutter-label {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.25em;
+  color: rgba(0, 229, 255, 0.45);
+  text-shadow: 0 0 4px rgba(0, 229, 255, 0.3);
+  padding: 8px 0;
+  text-transform: uppercase;
+}
+
+.cyber-gutter.right .gutter-label {
+  color: rgba(0, 255, 157, 0.45);
+  text-shadow: 0 0 4px rgba(0, 255, 157, 0.3);
+}
+
+/* --------------------------------------------------------------------------
+   CENTER PANEL (The Match Stage - Locked 440px)
+   -------------------------------------------------------------------------- */
+.panel-center {
+  position: relative;
+  z-index: 2;
+  width: 440px;
+  min-width: 440px;
+  max-width: 440px;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  background: var(--bg-deep);
+  box-shadow: 
+    inset 2px 0 20px rgba(0, 0, 0, 0.9),
+    inset -2px 0 20px rgba(0, 0, 0, 0.9);
+}
+
+/* Ensure inner Swipe Container locks to 440px without stretching or overflow */
+.panel-center > * {
+  width: 100% !important;
+  max-width: 440px !important;
+  height: 100vh !important;
+  margin: 0 auto !important;
+  border-left: none !important;
+  border-right: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   RIGHT PANEL (Adaptive HUD)
+   -------------------------------------------------------------------------- */
+.panel-right {
+  position: relative;
+  z-index: 2;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-left: 1px solid rgba(0, 255, 157, 0.08);
+}
+
+/* Sleek Scrollbars */
+.panel-left::-webkit-scrollbar,
+.panel-right::-webkit-scrollbar {
+  width: 4px;
+}
+.panel-left::-webkit-scrollbar-track,
+.panel-right::-webkit-scrollbar-track {
+  background: rgba(5, 3, 8, 0.5);
+}
+.panel-left::-webkit-scrollbar-thumb {
+  background: rgba(0, 229, 255, 0.3);
+  border-radius: 2px;
+}
+.panel-left::-webkit-scrollbar-thumb:hover {
+  background: var(--neon-cyan);
+}
+.panel-right::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 157, 0.3);
+  border-radius: 2px;
+}
+.panel-right::-webkit-scrollbar-thumb:hover {
+  background: var(--neon-green);
+}
+
+/* --------------------------------------------------------------------------
+   FULL-VIEWPORT MINIGAME SCANLINE OVERLAY (Phase-In / Phase-Out)
+   -------------------------------------------------------------------------- */
+.minigame-fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #050308;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+  overflow: hidden;
+  animation: mgScanlinePhaseIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.minigame-fullscreen-overlay.exiting {
+  animation: mgScanlinePhaseOut 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+/* Glitch scanlines across all three panels */
+.minigame-scanlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 229, 255, 0.04),
+    rgba(0, 229, 255, 0.04) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  z-index: 10000;
+  mix-blend-mode: screen;
+}
+
+.minigame-scanline-sweep {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 12px;
+  background: linear-gradient(180deg, transparent, rgba(0, 255, 157, 0.35), transparent);
+  animation: mgSweep 3s linear infinite;
+  pointer-events: none;
+  z-index: 10001;
+}
+
+@keyframes mgSweep {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes mgScanlinePhaseIn {
+  0% {
+    opacity: 0;
+    filter: blur(12px) contrast(200%);
+    transform: scale(1.03);
+  }
+  40% {
+    opacity: 0.85;
+    filter: blur(4px) brightness(1.4);
+    transform: scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0px) contrast(100%);
+    transform: scale(1);
+  }
+}
+
+@keyframes mgScanlinePhaseOut {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0px);
+  }
+  40% {
+    opacity: 0.9;
+    filter: blur(6px) brightness(1.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.05);
+    filter: blur(16px);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   RESPONSIVE FALLBACK: MOBILE & TABLET (≤ 1024px)
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .three-panel-root {
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Hide Gutter rails on mobile */
+  .cyber-gutter {
+    display: none !important;
+  }
+
+  /* Center Panel takes full mobile width up to 440px */
+  .panel-center {
+    width: 100%;
+    min-width: unset;
+    max-width: 440px;
+    height: 100vh;
+    z-index: 10;
+  }
+
+  /* Left Persistent Chat becomes Slide-In Drawer */
+  .panel-left {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(88vw, 380px);
+    z-index: 900;
+    box-shadow: 10px 0 35px rgba(0, 0, 0, 0.85), 0 0 15px rgba(0, 229, 255, 0.2);
+    border-right: 1px solid var(--neon-cyan);
+    transform: translateX(-105%);
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .panel-left.drawer-open {
+    transform: translateX(0);
+  }
+
+  /* Right Adaptive HUD becomes Slide-In Drawer */
+  .panel-right {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: min(88vw, 380px);
+    z-index: 900;
+    box-shadow: -10px 0 35px rgba(0, 0, 0, 0.85), 0 0 15px rgba(0, 255, 157, 0.2);
+    border-left: 1px solid var(--neon-green);
+    transform: translateX(105%);
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .panel-right.drawer-open {
+    transform: translateX(0);
+  }
+
+  /* Drawer Backdrop Overlay */
+  .mobile-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 3, 8, 0.75);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 850;
+    animation: fadeIn 0.2s ease forwards;
+  }
+}
+
+/* Mobile Quick-Drawer Toggle Tabs */
+.mobile-edge-handle {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .mobile-edge-handle {
+    display: flex;
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 800;
+    padding: 10px 6px;
+    background: rgba(8, 6, 14, 0.9);
+    backdrop-filter: blur(8px);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    font-family: var(--font-mono);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transition: all 0.2s ease;
+  }
+
+  .mobile-edge-handle.left {
+    left: 2px;
+    border: 1px solid var(--neon-cyan);
+    color: var(--neon-cyan);
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+  }
+
+  .mobile-edge-handle.right {
+    right: 2px;
+    border: 1px solid var(--neon-green);
+    color: var(--neon-green);
+    box-shadow: 0 0 10px rgba(0, 255, 157, 0.3);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   LEFT PANEL STANDBY VIEW (Visible when chat is initializing)
+   -------------------------------------------------------------------------- */
+.left-panel-standby {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: #050308;
+  position: relative;
+  overflow: hidden;
+}
+
+.left-panel-standby .standby-header {
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 229, 255, 0.04);
+  border-bottom: 1px solid rgba(0, 229, 255, 0.15);
+}
+
+.left-panel-standby .live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--neon-cyan);
+  box-shadow: 0 0 10px var(--neon-cyan);
+  animation: pulse 1.5s infinite;
+}
+
+.left-panel-standby .standby-title {
+  color: var(--neon-cyan);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+}
+
+.left-panel-standby .standby-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+
+.left-panel-standby .standby-icon {
+  font-size: 36px;
+  filter: drop-shadow(0 0 12px rgba(0, 229, 255, 0.4));
+  margin-bottom: 4px;
+}
+
+.left-panel-standby .standby-glitch-text {
+  color: var(--neon-cyan);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+  animation: crtFlicker 3s infinite;
+}
+
+.left-panel-standby .standby-subtext {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+/* ==========================================================================
+   DESKTOP 3-PANEL PINNING & ADAPTIVE HUD BEHAVIOR (min-width: 1025px)
+   ========================================================================== */
+@media (min-width: 1025px) {
+  /* 1. Center Panel & Swipe Container - prevent clipping & coordinate trapping */
+  .panel-center {
+    overflow: visible !important;
+    transform: none !important;
+    animation: none !important;
+  }
+
+  .swipe-container {
+    overflow: visible !important;
+    transform: none !important;
+    animation: none !important;
+  }
+
+  /* Center Swipe Card Deck must stay 100% visible and interactive */
+  .card-area {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
+  }
+
+  /* 2. Left Panel: 1:1 Real Native Messages Page (setup-chat-panel) */
+  /* Pins the exact, native messages page directly into the Left Panel space */
+  .setup-chat-panel,
+  .setup-chat-panel.collapsed {
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: auto !important;
+    width: calc(50vw - 222px) !important;
+    height: 100vh !important;
+    z-index: 50 !important;
+    transform: none !important;
+    border-left: none !important;
+    border-right: 1px solid rgba(0, 229, 255, 0.25) !important;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.7) !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    background: #050308 !important;
+  }
+
+  /* 3. Right Panel: Adaptive Secondary Windows */
+  /* Any window opened by the user (Settings, Session/Profile, Theme Forge, DAW Studio, Tape Library, GachaFans, GachaFans Hub) mounts in the Right Panel */
+  .splash:not(.is-splash-boot),
+  .gachafans-portal-root,
+  .gachafans-hub-root {
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: calc(50vw + 222px) !important;
+    right: 0 !important;
+    width: calc(50vw - 222px) !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    z-index: 60 !important;
+    background: #050308 !important;
+    overflow-y: auto !important;
+    border-left: 1px solid rgba(0, 229, 255, 0.25) !important;
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.7) !important;
+    transform: none !important;
+  }
+
+  /* Inside secondary windows, make content layout stretch neatly */
+  .splash:not(.is-splash-boot) > div {
+    max-width: 520px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* 4. Minigame Takeover: Escape constraints & take over all 3 panels */
+  .gachafans-portal-root.minigame-running,
+  .gachafans-portal-root:has(.matrix-shooter-root) {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    z-index: 99999 !important;
+    transform: none !important;
+    border-left: none !important;
+    box-shadow: none !important;
+  }
+
+  .matrix-shooter-root {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    left: 0 !important;
+    top: 0 !important;
+    z-index: 99999 !important;
+    transform: none !important;
+  }
+}
+

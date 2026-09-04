@@ -284,12 +284,22 @@ export function useTapes() {
 // --- Settings & Secure BYOK Key Helpers ---
 
 export async function getSetting(key, defaultValue = null) {
-    const record = await db.settings.get(key);
-    return record ? record.value : defaultValue;
+    if (typeof window === "undefined" || !db?.settings) return defaultValue;
+    try {
+        const record = await db.settings.get(key);
+        return record ? record.value : defaultValue;
+    } catch (e) {
+        return defaultValue;
+    }
 }
 
 export async function setSetting(key, value) {
-    return await db.settings.put({ key, value });
+    if (typeof window === "undefined" || !db?.settings) return;
+    try {
+        return await db.settings.put({ key, value });
+    } catch (e) {
+        return;
+    }
 }
 
 export async function getApiKey() {

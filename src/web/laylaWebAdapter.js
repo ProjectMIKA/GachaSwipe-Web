@@ -7,7 +7,7 @@
  */
 
 import { classifySentiment } from "./sentimentEngine.js";
-import { generateCharacterPersona, generateCharacterImage, createChatStream } from "./aiClient.js";
+import { generateCharacterPersona, generateCharacterImage, createChatStream, fetchAvailableModels, fetchAvailableImageModels, NANOGPT_IMAGE_MODELS } from "./aiClient.js";
 import {
     db,
     saveCard,
@@ -16,7 +16,9 @@ import {
     readVirtualFile,
     deleteVirtualFile,
     saveMemory,
-    getMemories
+    getMemories,
+    getSetting,
+    setSetting
 } from "./db.js";
 
 // Helper: Generates a procedural WAV base64 tone (fallback for AceStep synthesis)
@@ -78,6 +80,23 @@ function generateProceduralSynthWav(durationSeconds = 6, bpm = 120) {
 
 export class LaylaWebSDK {
     constructor() {
+        this.activeEngine = "z-ai/glm-5.2";
+
+        if (typeof window !== "undefined") {
+            // Pre-load active model from settings
+            getSetting("ai_model").then(m => {
+                if (m) this.activeEngine = m;
+            }).catch(() => {});
+
+            // Keep in sync with user selections in HUD / Settings
+            window.addEventListener("gacha:model-changed", (e) => {
+                if (e?.detail?.modelId) {
+                    this.activeEngine = e.detail.modelId;
+                    console.log("[LaylaWebSDK] Inference engine synced to:", this.activeEngine);
+                }
+            });
+        }
+
         // 1. Contextual & Version Execution Context
         this.contextual = {
             getExecutionContext: async (options) => {
@@ -122,11 +141,20 @@ export class LaylaWebSDK {
                 create: async (params) => {
                     const prompt = params.messages?.[params.messages.length - 1]?.content || "";
                     const systemPrompt = params.messages?.find(m => m.role === "system")?.content || "";
+                    let targetModel = params.model;
+                    if (!targetModel || targetModel === "chatgpt-4o-latest" || targetModel === "Default (Auto)") {
+                        try {
+                            const saved = await getSetting("ai_model");
+                            targetModel = saved || this.activeEngine || "z-ai/glm-5.2";
+                        } catch (e) {
+                            targetModel = this.activeEngine || "z-ai/glm-5.2";
+                        }
+                    }
                     const content = await generateCharacterPersona({
                         prompt,
                         systemPrompt,
                         messages: params.messages,
-                        model: params.model || "chatgpt-4o-latest",
+                        model: targetModel,
                         temperature: params.temperature ?? 0.85
                     });
                     return {
@@ -136,23 +164,43 @@ export class LaylaWebSDK {
                 stream: (params) => {
                     const systemPrompt = params.messages?.find(m => m.role === "system")?.content || "";
                     const userMessages = params.messages?.filter(m => m.role !== "system") || [];
+                    let targetModel = params.model;
+                    if (!targetModel || targetModel === "chatgpt-4o-latest" || targetModel === "Default (Auto)") {
+                        targetModel = this.activeEngine || undefined;
+                    }
                     return createChatStream({
                         messages: userMessages,
                         systemPrompt,
-                        model: params.model || "chatgpt-4o-latest",
+                        model: targetModel,
                         temperature: params.temperature ?? 0.85,
                         signal: params.signal
                     });
                 }
             },
-            getInferenceEngines: async () => [
-                { id: "chatgpt-4o-latest", name: "ChatGPT-4o (NanoGPT Cloud)", engine: "chatgpt-4o-latest" },
-                { id: "claude-3-5-sonnet", name: "Claude 3.5 Sonnet (NanoGPT)", engine: "claude-3-5-sonnet" },
-                { id: "deepseek-chat", name: "DeepSeek Chat (NanoGPT)", engine: "deepseek-chat" },
-                { id: "offline-mock", name: "Offline Procedural Proxy", engine: "offline-mock" }
-            ],
+            getInferenceEngines: async () => {
+                try {
+                    const models = await fetchAvailableModels();
+                    if (Array.isArray(models) && models.length > 0) {
+                        return models.map(m => ({ id: m.id, name: m.name || m.id, engine: m.id }));
+                    }
+                } catch (e) {}
+                return [
+                    { id: "z-ai/glm-5.2", name: "GLM-5.2 (NanoGPT Subscription)", engine: "z-ai/glm-5.2" },
+                    { id: "z-ai/glm-5.2:thinking", name: "GLM-5.2 Thinking (NanoGPT)", engine: "z-ai/glm-5.2:thinking" },
+                    { id: "deepseek-chat", name: "DeepSeek Chat (NanoGPT)", engine: "deepseek-chat" },
+                    { id: "google/gemma-4-31b-it", name: "Gemma 4 31B (NanoGPT)", engine: "google/gemma-4-31b-it" },
+                    { id: "openai/gpt-4o-mini", name: "GPT-4o Mini (NanoGPT Cloud)", engine: "openai/gpt-4o-mini" },
+                    { id: "claude-3-5-sonnet", name: "Claude 3.5 Sonnet (NanoGPT)", engine: "claude-3-5-sonnet" },
+                    { id: "offline-mock", name: "Offline Procedural Proxy", engine: "offline-mock" }
+                ];
+            },
             setInferenceEngine: async (engineId) => {
-                await db.settings.put({ key: "active_inference_engine", value: engineId });
+                this.activeEngine = engineId || "z-ai/glm-5.2";
+                await setSetting("ai_model", this.activeEngine);
+                await db.settings.put({ key: "active_inference_engine", value: this.activeEngine });
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("gacha:model-changed", { detail: { modelId: this.activeEngine } }));
+                }
                 return true;
             },
             scheduleChatMessage: async (params) => {
@@ -171,7 +219,7 @@ export class LaylaWebSDK {
             generateImage: async (promptOrParams, onProgress, opts, model, extra) => {
                 let prompt = "";
                 let progressCb = onProgress;
-                let targetModel = model || "flux-schnell";
+                let targetModel = model;
                 let signal = extra?.signal;
 
                 if (typeof promptOrParams === "string") {
@@ -183,19 +231,30 @@ export class LaylaWebSDK {
                     signal = promptOrParams.signal || signal;
                 }
 
+                if (!targetModel || targetModel === "Default (Auto)") {
+                    try {
+                        const savedImgModel = await getSetting("image_model");
+                        targetModel = savedImgModel || "flux-schnell";
+                    } catch (e) {
+                        targetModel = "flux-schnell";
+                    }
+                }
+
                 return await generateCharacterImage({
                     prompt: prompt || "masterpiece anime cyberpunk portrait, neon glow, highly detailed",
-                    model: targetModel,
+                    model: targetModel || "flux-schnell",
                     aspectRatio: "9:16",
                     onProgress: progressCb,
                     signal
                 });
             },
-            getImageGenerationModels: async () => [
-                { id: "flux-schnell", name: "FLUX.1 Schnell (Fast Anime)" },
-                { id: "flux-dev", name: "FLUX.1 Dev (Ultra Masterpiece)" },
-                { id: "sdxl", name: "SDXL Anime Cyberpunk" }
-            ]
+            getImageGenerationModels: async () => {
+                try {
+                    const list = await fetchAvailableImageModels();
+                    if (Array.isArray(list) && list.length > 0) return list;
+                } catch (e) {}
+                return NANOGPT_IMAGE_MODELS;
+            }
         };
 
         // 6. Memory Archive

@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
+import { ThreePanelLayout } from './web/components/ThreePanelLayout.jsx';
 import { LaylaWebSDK } from './web/laylaWebAdapter.js';
 import JSZip from 'jszip';
 
@@ -68,7 +69,9 @@ const bootApp = () => {
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(
       <ErrorBoundary>
-        <App />
+        <ThreePanelLayout>
+          <App />
+        </ThreePanelLayout>
       </ErrorBoundary>
     );
   } catch (error) {
