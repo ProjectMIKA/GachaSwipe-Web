@@ -1,0 +1,405 @@
+:root {
+            --bg: #000000;
+            --card: #171226; 
+            --accent: #FF107A; 
+            --accent-hover: #E00060;
+            --text-main: #EBE3D6; 
+            --text-dim: #888888; 
+            --border: rgba(255, 16, 122, 0.3);
+            --font-sans: 'Hanken Grotesk', system-ui, sans-serif; 
+            --font-serif: 'Fraunces', serif;
+        }
+
+        body { margin: 0; padding: 0; background: var(--bg); color: var(--text-main); font-family: var(--font-sans); min-height: 100vh; overflow-x: hidden; touch-action: manipulation; }
+        * { box-sizing: border-box; }
+        button { touch-action: manipulation; user-select: none; -webkit-tap-highlight-color: transparent; }
+        
+        #root { width: 100%; min-height: 100vh; position: relative; display: flex; flex-direction: column; align-items: center; }
+
+        .splash { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; width: 100%; text-align: center; padding: 20px; position: relative; background: #0B0914; overflow-y: auto; padding-bottom: 60px; }
+        
+        .mika-badge { font-size: 10px; font-weight: bold; color: var(--accent); opacity: 0.3; letter-spacing: 0.2em; text-transform: uppercase; }
+
+        .btn { background: var(--accent); color: #fff; font-weight: bold; border: none; padding: 12px 16px; border-radius: 24px; cursor: pointer; transition: 0.2s; font-family: inherit; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; text-align: center; }
+        .btn:hover:not(:disabled) { background: var(--accent-hover); }
+        .btn:active:not(:disabled) { transform: scale(0.98); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-outline { background: transparent; border: 1px dashed var(--accent); color: var(--accent); border-radius: 8px; }
+        .btn-outline:hover:not(:disabled) { background: rgba(255, 16, 122, 0.1); }
+        .btn-pill { border-radius: 24px !important; }
+
+        .search-input { width: 100%; padding: 12px 16px; border-radius: 20px; border: 1px solid #444; background: #222; color: #fff; outline: none; font-size: 14px; font-family: inherit; transition: border-color 0.2s; box-sizing: border-box; }
+        .search-input:focus { border-color: var(--accent); }
+
+        .swipe-container { width: 100%; max-width: 400px; height: 100vh; display: flex; flex-direction: column; position: relative; padding: 16px; box-sizing: border-box; overflow: hidden; background: #050308; border-left: 1px solid rgba(0, 229, 255, 0.06); border-right: 1px solid rgba(0, 229, 255, 0.06); }
+        
+        .swipe-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; z-index: 10; position: relative; gap: 8px; }
+        .theme-pill { display: flex; overflow: hidden; white-space: nowrap; width: 140px; background: rgba(0, 229, 255, 0.03); border: 1px solid rgba(0, 229, 255, 0.2); padding: 5px 10px; border-radius: 4px; align-items: center; font-size: 11px; flex-shrink: 0; font-family: "ui-monospace, 'SF Mono', Menlo, monospace"; letter-spacing: 0.03em; box-shadow: inset 0 0 8px rgba(0,229,255,0.05); }
+        
+        /* ✨ MIKA'S SMART SCROLL ENGINE ✨ */
+        .smart-scroll-box { container-type: inline-size; flex: 1; overflow: hidden; white-space: nowrap; display: flex; align-items: center; }
+        .smart-scroll-content { display: inline-block; animation: smartPan 8s ease-in-out infinite alternate; padding-right: 4px; }
+        @keyframes smartPan { 0%, 15% { transform: translateX(0); } 85%, 100% { transform: translateX(min(0px, calc(-100% + 100cqi))); } }
+        
+        .tastes-meter-container { position: relative; flex: 1; max-width: 120px; height: 18px; background: rgba(0, 229, 255, 0.03); border-radius: 4px; border: 1px solid rgba(0, 229, 255, 0.2); overflow: hidden; box-shadow: inset 0 0 8px rgba(0,229,255,0.05); }
+        .tastes-meter-fill { height: 100%; background: linear-gradient(90deg, #00E5FF, #B533FF, #FF107A); transition: width 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); box-shadow: 0 0 10px rgba(0,229,255,0.3); }
+        .tastes-meter-text { position: absolute; inset: 0; display: grid; place-items: center; font-size: 9px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.8); font-family: "ui-monospace, 'SF Mono', Menlo, monospace"; letter-spacing: 0.1em; }
+
+        .header-actions { display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+        .header-icon-btn { background: transparent; border: none; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; opacity: 0.55; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); padding: 0; display: flex; align-items: center; justify-content: center; }
+        .header-icon-btn svg { width: 22px; height: 22px; display: block; pointer-events: none; }
+        .header-icon-btn.chat:hover { opacity: 1; transform: scale(1.15); filter: drop-shadow(0 0 6px rgba(255,16,122,0.5)); }
+        .header-icon-btn.settings:hover { opacity: 1; transform: rotate(90deg) scale(1.15); filter: drop-shadow(0 0 6px rgba(0,229,255,0.5)); }
+        .header-icon-btn.history:hover { opacity: 1; transform: scale(1.15); filter: drop-shadow(0 0 6px rgba(0,229,255,0.5)); }
+        
+        .icon-btn { background: transparent; border: none; font-size: 14px; cursor: pointer; opacity: 0.7; transition: 0.2s; padding: 4px; }
+        .icon-btn:hover { opacity: 1; transform: scale(1.1); }
+
+        .card-area { flex: 1; position: relative; display: flex; justify-content: center; align-items: center; perspective: 1000px; z-index: 5; margin-bottom: 20px;}
+        
+        .swipe-controls { position: relative; display: flex; justify-content: space-around; align-items: center; padding: 10px 0 20px 0; z-index: 10; }
+        .control-btn { width: 60px; height: 60px; border-radius: 12px; border: 1.5px solid var(--border); background: rgba(0, 229, 255, 0.03); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); display: grid; place-items: center; cursor: pointer; transition: 0.2s; box-shadow: 0 10px 22px -12px rgba(0,0,0,0.5), inset 0 0 12px rgba(0,229,255,0.04); }
+        .control-btn.pass { color: #00E5FF; border-color: rgba(0, 229, 255, 0.4); box-shadow: 0 10px 22px -12px rgba(0,0,0,0.5), 0 0 12px rgba(0,229,255,0.08), inset 0 0 12px rgba(0,229,255,0.05); }
+        .control-btn.rewind { width: 44px; height: 44px; color: #B533FF; border-color: rgba(181, 51, 255, 0.4); box-shadow: 0 10px 22px -12px rgba(0,0,0,0.5), 0 0 12px rgba(181,51,255,0.08), inset 0 0 12px rgba(181,51,255,0.05); }
+        .control-btn.like { color: #FF107A; border-color: rgba(255, 16, 122, 0.4); box-shadow: 0 10px 22px -12px rgba(0,0,0,0.5), 0 0 12px rgba(255,16,122,0.08), inset 0 0 12px rgba(255,16,122,0.05); }
+        .control-btn:active:not(:disabled) { transform: translateY(0) scale(0.96); }
+        .control-btn:hover:not(:disabled) { transform: translateY(-3px) scale(1.05); }
+        .control-btn:hover:not(:disabled).pass { box-shadow: 0 10px 22px -12px rgba(0,0,0,0.5), 0 0 20px rgba(0,229,255,0.25), inset 0 0 12px rgba(0,229,255,0.08); }
+        .control-btn:hover:not(:disabled).like { box-shadow: 0 10px 22px -12px rgba(0,0,0,0.5), 0 0 20px rgba(255,16,122,0.25), inset 0 0 12px rgba(255,16,122,0.08); }
+        .control-btn:hover:not(:disabled).rewind { box-shadow: 0 10px 22px -12px rgba(0,0,0,0.5), 0 0 20px rgba(181,51,255,0.25), inset 0 0 12px rgba(181,51,255,0.08); }
+        .control-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .tags-panel-wrapper { position: relative; z-index: 9999; margin-bottom: 12px; }
+        .bubble-tab { background: rgba(0, 229, 255, 0.03); border: 1px solid rgba(0, 229, 255, 0.2); color: #00E5FF; border-radius: 4px; font-family: "ui-monospace, 'SF Mono', Menlo, monospace"; font-weight: 700; font-size: 12px; cursor: pointer; transition: all 0.2s; outline: none; display: flex; align-items: center; width: 100%; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.5), inset 0 0 8px rgba(0,229,255,0.04); letter-spacing: 0.05em; text-shadow: 0 0 6px rgba(0,229,255,0.3); }
+        .bubble-tab:hover { border-color: rgba(0, 229, 255, 0.5); background: rgba(0, 229, 255, 0.08); box-shadow: 0 4px 12px rgba(0,0,0,0.5), 0 0 12px rgba(0,229,255,0.15), inset 0 0 8px rgba(0,229,255,0.06); }
+        .bubble-tab.active { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom-color: transparent; background: rgba(0, 229, 255, 0.06); }
+        .bubble-content { background: #0C0912; border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 0 0 4px 4px; padding: 16px; margin-top: -1px; position: absolute; width: 100%; box-sizing: border-box; box-shadow: 0 16px 40px rgba(0,0,0,0.8), inset 0 0 15px rgba(0,229,255,0.03); animation: expandDown 0.2s ease forwards; transform-origin: top left; }
+        
+        .tags-container { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .cute-tag { background: rgba(0, 229, 255, 0.1); color: #00E5FF; padding: 5px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; white-space: nowrap; box-shadow: 0 0 10px rgba(0, 229, 255, 0.2); margin: 0; border: 1px solid rgba(0, 229, 255, 0.3); font-family: "ui-monospace, 'SF Mono', Menlo, monospace"; letter-spacing: 0.02em; }
+        .cute-tag:hover { background: rgba(0, 229, 255, 0.2); transform: scale(0.95); box-shadow: 0 0 15px rgba(0, 229, 255, 0.4); }
+
+        .sub-menu-grid { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border: 1px solid rgba(0, 229, 255, 0.12); border-radius: 4px; background: rgb(8,6,14); margin-bottom: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.6), inset 0 0 10px rgba(0,229,255,0.03); animation: fadeIn 0.2s ease; }
+        .sub-menu-btn { flex: 1 1 calc(33% - 6px); min-height: 34px; border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; background: rgba(0, 229, 255, 0.02); color: rgba(232,227,214,0.5); font-family: "ui-monospace, 'SF Mono', Menlo, monospace"; font-size: 10.5px; font-weight: 700; cursor: pointer; transition: all 0.18s; letter-spacing: 0.03em; text-transform: uppercase; }
+        .sub-menu-btn:hover { background: rgba(255, 16, 122, 0.1); color: var(--accent); border-color: rgba(255, 16, 122, 0.3); box-shadow: 0 0 8px rgba(255,16,122,0.1); }
+
+        .dropdown-option { padding: 12px 16px; border-radius: 8px; cursor: pointer; color: var(--text-main); transition: 0.2s; font-size: 13px; font-weight: 600; text-align: left; display: flex; justify-content: space-between; align-items: center; }
+        .dropdown-option:hover { background: rgba(255, 16, 122, 0.1); color: var(--accent); }
+        .dropdown-option.selected { background: rgba(255, 16, 122, 0.2); color: var(--accent); font-weight: 800; border-left: 3px solid var(--accent); }
+
+        /* ✨ MIKA'S TERMINAL SETTINGS SKIN ✨ */
+        .splash .list-item { background: rgba(0, 229, 255, 0.03); border: 1px solid rgba(0, 229, 255, 0.15); border-radius: 4px; padding: 14px 16px; margin-bottom: 10px; font-family: "ui-monospace, 'SF Mono', Menlo, monospace"; transition: border-color 0.2s ease; }
+        .splash .list-item:hover { border-color: rgba(0, 229, 255, 0.3); }
+        .splash .dropdown-option { font-family: "ui-monospace, 'SF Mono', Menlo, monospace"; font-size: 12px; letter-spacing: 0.03em; border-radius: 4px; }
+        .splash .search-input { font-family: "ui-monospace, 'SF Mono', Menlo, monospace" !important; border-radius: 4px !important; }
+        .splash .btn { border-radius: 4px !important; font-family: "ui-monospace, 'SF Mono', Menlo, monospace" !important; letter-spacing: 0.05em !important; }
+        .splash .btn-outline { border-radius: 4px !important; font-family: "ui-monospace, 'SF Mono', Menlo, monospace" !important; letter-spacing: 0.05em !important; }
+        .splash .mika-checkbox { border-radius: 3px; }
+        .splash .toggle-switch .slider { border-radius: 4px; }
+        .splash .toggle-switch .slider:before { border-radius: 3px; }
+        .splash div[style*="expandDown"] { border-radius: 4px !important; }
+
+        .setup-chat-panel { position: fixed; right: 0; top: 0; z-index: 3000; width: 400px; max-width: 100vw; height: 100vh; background: #050308; border-left: 1px solid rgba(0, 229, 255, 0.15); display: flex; flex-direction: column; transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); box-shadow: -10px 0 40px rgba(0,0,0,0.9), -4px 0 20px rgba(0, 229, 255, 0.05); transform: translate3d(0, 0, 1000px); }
+        .setup-chat-panel.collapsed { transform: translate3d(100%, 0, 1000px); box-shadow: none; }
+        
+        /* ✨ MIKA'S CHAT SCANLINE OVERLAY ✨ */
+        .chat-scanlines { position: absolute; inset: 0; pointer-events: none; z-index: 9998; background: linear-gradient(180deg, transparent 50%, rgba(0, 229, 255, 0.012) 50%); background-size: 100% 3px; opacity: 0.6; }
+        .chat-scanline-move { position: absolute; left: 0; right: 0; height: 80px; pointer-events: none; z-index: 9998; background: linear-gradient(180deg, transparent, rgba(0, 229, 255, 0.03), transparent); animation: scanlineScroll 10s linear infinite; }
+
+        /* ✨ MIKA'S SWIPE TERMINAL SKIN ✨ */
+        .swipe-scanlines { position: absolute; inset: 0; pointer-events: none; z-index: 999; background: linear-gradient(180deg, transparent 50%, rgba(0, 229, 255, 0.012) 50%); background-size: 100% 3px; opacity: 0.5; }
+        .swipe-scanline-move { position: absolute; left: 0; right: 0; height: 60px; pointer-events: none; z-index: 999; background: linear-gradient(180deg, transparent, rgba(0, 229, 255, 0.02), transparent); animation: scanlineScroll 12s linear infinite; }
+        .swipe-vignette { position: absolute; inset: 0; pointer-events: none; z-index: 998; background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.35) 100%); }
+        .swipe-container .search-input { font-family: "ui-monospace, 'SF Mono', Menlo, monospace" !important; border-radius: 4px !important; background: #0B0914 !important; border: 1px solid rgba(0, 229, 255, 0.15) !important; }
+        .swipe-container .search-input:focus { border-color: rgba(0, 229, 255, 0.4) !important; box-shadow: 0 0 10px rgba(0, 229, 255, 0.1) !important; }
+        .swipe-container .dropdown-option { font-family: "ui-monospace, 'SF Mono', Menlo, monospace"; font-size: 12px; letter-spacing: 0.03em; border-radius: 4px; }
+        .swipe-container .btn { border-radius: 4px !important; font-family: "ui-monospace, 'SF Mono', Menlo, monospace" !important; letter-spacing: 0.05em !important; }
+        .swipe-container .btn-outline { border-radius: 4px !important; font-family: "ui-monospace, 'SF Mono', Menlo, monospace" !important; letter-spacing: 0.05em !important; }
+        
+        /* ✨ MIKA'S TERMINAL PREFIX ✨ */
+        .term-prefix { color: #00E5FF; margin-right: 6px; font-weight: bold; opacity: 0.6; text-shadow: 0 0 6px rgba(0, 229, 255, 0.4); font-family: "ui-monospace, 'SF Mono', Menlo, monospace"; }
+        .term-prompt { color: #00E5FF; font-weight: bold; font-size: 15px; text-shadow: 0 0 8px rgba(0, 229, 255, 0.4); flex-shrink: 0; font-family: "ui-monospace, 'SF Mono', Menlo, monospace"; }
+        
+        /* ✨ MIKA'S CYBERPUNK TERMINAL MESSAGES ✨ */
+        .buddy-message { padding: 10px 14px; border-radius: 4px; font-size: 14px; line-height: 1.5; max-width: 82%; word-break: break-word; white-space: pre-wrap; margin-bottom: 2px; position: relative; animation: msgSlideIn 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); font-family: "ui-monospace, 'SF Mono', Menlo, monospace"; letter-spacing: 0.01em; }
+        .buddy-message.user { background: rgba(255, 16, 122, 0.06); color: #FFB8D5; align-self: flex-end; border: 1px solid rgba(255, 16, 122, 0.25); border-right: 2px solid var(--accent); margin-left: auto; box-shadow: 0 0 12px rgba(255, 16, 122, 0.08), inset 0 0 30px rgba(255, 16, 122, 0.02); text-shadow: 0 0 6px rgba(255, 16, 122, 0.15); }
+        .buddy-message.assistant { background: rgba(0, 229, 255, 0.03); color: #C8E8F0; align-self: flex-start; border: 1px solid rgba(0, 229, 255, 0.15); border-left: 2px solid #00E5FF; box-shadow: 0 0 12px rgba(0, 229, 255, 0.06), inset 0 0 30px rgba(0, 229, 255, 0.015); text-shadow: 0 0 4px rgba(0, 229, 255, 0.1); }
+        
+        /* Message Grouping & Spacing */
+        .buddy-message + .buddy-message { margin-top: 3px; }
+        .buddy-message.user + .buddy-message.assistant,
+        .buddy-message.assistant + .buddy-message.user { margin-top: 14px; }
+        
+        /* ✨ Terminal Typing Indicator ✨ */
+        .typing-indicator { display: flex; align-items: center; gap: 5px; padding: 12px 16px; background: rgba(0, 229, 255, 0.03); border: 1px solid rgba(0, 229, 255, 0.15); border-left: 2px solid #00E5FF; border-radius: 4px; align-self: flex-start; margin-bottom: 4px; box-shadow: 0 0 12px rgba(0, 229, 255, 0.06); font-family: "ui-monospace, 'SF Mono', Menlo, monospace"; }
+        .typing-dot { width: 7px; height: 13px; background: #00E5FF; border-radius: 1px; animation: cursorBlink 1.2s infinite step-end; box-shadow: 0 0 8px rgba(0, 229, 255, 0.5); }
+        .typing-dot:nth-child(1) { animation-delay: 0s; }
+        .typing-dot:nth-child(2) { animation-delay: 0.25s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.5s; }
+        
+        /* ✨ Terminal Timestamp ✨ */
+        .msg-timestamp { font-size: 10px; color: rgba(0, 229, 255, 0.3); margin-top: 4px; margin-bottom: 12px; padding: 0 4px; font-weight: 500; font-family: "ui-monospace, 'SF Mono', Menlo, monospace"; letter-spacing: 0.05em; }
+        .buddy-message.user + .msg-timestamp { text-align: right; color: rgba(255, 16, 122, 0.3); }
+        
+        /* ✨ Terminal Input Bar ✨ */
+        .chat-input-container { position: absolute; bottom: 0; left: 0; right: 0; padding: 12px 16px 24px 16px; background: rgba(5, 3, 8, 0.65); backdrop-filter: blur(24px) saturate(1.2); -webkit-backdrop-filter: blur(24px) saturate(1.2); border-top: 1px solid rgba(0, 229, 255, 0.3); border-radius: 24px 24px 0 0; box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.8), inset 0 1px 15px rgba(0, 229, 255, 0.1); z-index: 20; }
+        .chat-input-wrapper { display: flex; align-items: center; gap: 8px; background: rgba(0, 229, 255, 0.08); border-radius: 12px; padding: 6px 6px 6px 12px; border: 1px solid rgba(0, 229, 255, 0.3); transition: all 0.2s; font-family: "ui-monospace, 'SF Mono', Menlo, monospace"; box-shadow: inset 0 0 8px rgba(0,229,255,0.05); }
+        .chat-input-wrapper:focus-within { border-color: rgba(0, 229, 255, 0.4); box-shadow: 0 0 15px rgba(0, 229, 255, 0.1), inset 0 0 10px rgba(0, 229, 255, 0.02); }
+        .chat-input { flex: 1; background: transparent; border: none; color: #C8E8F0; font-family: inherit; font-size: 14px; outline: none; letter-spacing: 0.01em; }
+        .chat-input::placeholder { color: rgba(0, 229, 255, 0.25); font-style: italic; }
+        .chat-send-btn { width: 36px; height: 36px; border-radius: 4px; background: rgba(255, 16, 122, 0.1); border: 1px solid var(--accent); color: var(--accent); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; box-shadow: 0 0 10px rgba(255, 16, 122, 0.2); flex-shrink: 0; }
+        .chat-send-btn:hover { background: var(--accent); color: #fff; transform: scale(1.05); box-shadow: 0 0 20px rgba(255, 16, 122, 0.4); }
+        .chat-send-btn:disabled { opacity: 0.2; background: transparent; border: 1px solid #333; cursor: not-allowed; transform: none; color: #444; box-shadow: none; }
+        
+        /* Animations */
+        @keyframes msgSlideIn { from { opacity: 0; transform: translateX(-6px); filter: blur(3px); } to { opacity: 1; transform: translateX(0); filter: blur(0); } }
+        @keyframes typingBounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-8px); opacity: 1; } }
+
+        .char-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 16px; width: 100%; max-height: 50vh; overflow-y: auto; padding: 10px; margin-bottom: 20px; }
+        .char-grid::-webkit-scrollbar { width: 6px; }
+        .char-grid::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 4px; }
+        .char-grid::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
+        
+        .char-card { background: rgba(255,255,255,0.05); border: 2px solid transparent; border-radius: 12px; padding: 10px; cursor: pointer; transition: 0.2s; text-align: center; opacity: 0; animation: cardMaterialize 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+        .char-card:hover { border-color: var(--accent); transform: translateY(-4px); background: rgba(255,255,255,0.1); }
+        .char-card:nth-child(1) { animation-delay: 0.05s; }
+        .char-card:nth-child(2) { animation-delay: 0.1s; }
+        .char-card:nth-child(3) { animation-delay: 0.15s; }
+        .char-card:nth-child(4) { animation-delay: 0.2s; }
+        .char-card:nth-child(5) { animation-delay: 0.25s; }
+        .char-card:nth-child(6) { animation-delay: 0.3s; }
+        .char-card:nth-child(7) { animation-delay: 0.35s; }
+ .char-card:nth-child(8) { animation-delay: 0.4s; }
+        .char-card:nth-child(n+9) { animation-delay: 0.45s; }
+        .char-avatar { width: 100%; aspect-ratio: 1/1; border-radius: 8px; object-fit: cover; margin-bottom: 8px; background: rgba(0,0,0,0.4); }
+
+        .list-item { background: #1a1a1a; border: 1px solid #333; padding: 16px; border-radius: 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+        
+        .toggle-switch { position: relative; display: inline-block; width: 46px; height: 24px; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.05); transition: .4s; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: #888; transition: .4s; border-radius: 2px; }
+        input:checked + .slider { background-color: rgba(0, 229, 255, 0.15); border-color: rgba(0, 229, 255, 0.4); box-shadow: inset 0 0 10px rgba(0, 229, 255, 0.1); }
+        input:checked + .slider:before { transform: translateX(22px); background-color: #00E5FF; box-shadow: 0 0 8px #00E5FF; }
+
+        .mika-checkbox { appearance: none; -webkit-appearance: none; width: 20px; height: 20px; border: 1px solid rgba(0, 229, 255, 0.3); border-radius: 4px; background: rgba(0, 0, 0, 0.5); cursor: pointer; position: relative; transition: all 0.2s ease; flex-shrink: 0; margin: 0; display: grid; place-items: center; outline: none; }
+        .mika-checkbox:checked { border-color: #00E5FF; background: rgba(0, 229, 255, 0.15); box-shadow: 0 0 8px rgba(0, 229, 255, 0.3); }
+        .mika-checkbox:checked::after { content: '✔'; color: #00E5FF; font-size: 12px; font-weight: 900; }
+        .mika-checkbox:hover { border-color: #00E5FF; }
+
+        .toast { display: none; }
+        
+        .custom-dialog-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 2147483647; display: flex; align-items: center; justify-content: center; padding: 20px; animation: fadeIn 0.2s; backdrop-filter: blur(8px); }
+        .custom-dialog { background: rgba(5, 3, 8, 0.95); border: 1px solid #00E5FF; border-radius: 8px; padding: 24px; width: 100%; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.9), 0 0 20px rgba(0, 229, 255, 0.2), inset 0 0 15px rgba(0,229,255,0.05); color: #00E5FF; animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); text-align: left; font-family: "ui-monospace, 'SF Mono', Menlo, monospace"; }
+        .custom-dialog h3 { color: #00E5FF; margin: 0 0 16px 0; font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase; text-shadow: 0 0 8px rgba(0,229,255,0.4); }
+        .custom-dialog p { margin: 0 0 24px 0; font-size: 12px; color: #EBE3D6; line-height: 1.6; white-space: pre-wrap; letter-spacing: 0.03em; }
+        .custom-dialog-input { width: 100%; padding: 12px 16px; margin-bottom: 24px; border-radius: 4px; border: 1px solid rgba(0,229,255,0.3); background: rgba(0,0,0,0.5); color: #00E5FF; font-family: inherit; outline: none; font-size: 13px; letter-spacing: 0.05em; }
+        .custom-dialog-input:focus { border-color: #00E5FF; box-shadow: 0 0 10px rgba(0,229,255,0.2); }
+        .custom-dialog-actions { display: flex; gap: 12px; justify-content: flex-end; }
+        .custom-dialog-actions .btn { flex: 1; border-radius: 4px; font-family: "ui-monospace, 'SF Mono', Menlo, monospace"; font-size: 11px; letter-spacing: 0.05em; padding: 10px; }
+
+        .csd-clamp2 { display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+        .stat-page-content { flex: 1; overflow-y: auto; padding-right: 8px; display: flex; flex-direction: column; gap: 14px; padding-bottom: 20px;}
+        .stat-page-content::-webkit-scrollbar { width: 4px; }
+        .stat-page-content::-webkit-scrollbar-track { background: transparent; }
+        .stat-page-content::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
+
+        @keyframes csd-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+        @keyframes csd-shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+        @keyframes csd-bar { 0% { left: -40%; } 100% { left: 100%; } }
+        @keyframes csd-pulse { 0% { opacity: 0.6; transform: scale(1); } 50% { opacity: 1; transform: scale(1.05); } 100% { opacity: 0.6; transform: scale(1); } }
+        @keyframes resumeSpin { to { transform: rotate(360deg); } }
+        @keyframes resumePulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+        @keyframes resumeFadeOut { from { opacity: 1; } to { opacity: 0; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes cardMaterialize { 
+            0% { opacity: 0; transform: scale(0.85) translateY(30px); filter: blur(4px); } 
+            50% { opacity: 0.7; filter: blur(1px); } 
+            100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); } 
+        }
+
+        /* ✨ MIKA'S TERMINAL MONITOR BOOT EFFECT ✨ */
+        @keyframes cardTerminalBoot {
+            0% { opacity: 0; transform: scaleY(0.005) scaleX(0.8); filter: brightness(3) blur(6px); }
+            40% { opacity: 1; transform: scaleY(0.08) scaleX(1.02); filter: brightness(2) blur(2px); }
+            70% { transform: scaleY(1.02) scaleX(0.99); filter: brightness(1.2) blur(0.5px); }
+            100% { opacity: 1; transform: scaleY(1) scaleX(1); filter: brightness(1) blur(0); }
+        }
+        @keyframes cardGlow { 
+            0% { box-shadow: 0 0 0 0 rgba(255, 16, 122, 0); } 
+            50% { box-shadow: 0 0 20px 4px rgba(255, 16, 122, 0.3); } 
+            100% { box-shadow: 0 0 0 0 rgba(255, 16, 122, 0); } 
+        }
+        @keyframes swipeEnter { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+        @keyframes subtlePan { 0% { object-position: 0% 50%; } 50% { object-position: 100% 50%; } 100% { object-position: 0% 50%; } }
+        @keyframes csd-fade-swap { 0%, 45% { opacity: 1; transform: scale(1); } 50%, 95% { opacity: 0; transform: scale(1.05); } 100% { opacity: 1; transform: scale(1); } }
+        @keyframes csd-fade-swap-reverse { 0%, 45% { opacity: 0; transform: scale(1.05); } 50%, 95% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.05); } }
+
+        /* ✨ MIKA'S GACHAFANS CRT ANIMATIONS ✨ */
+        @keyframes crtFlicker {
+            0% { opacity: 0; filter: brightness(1.5); transform: scale(1.02); }
+            30% { opacity: 0.8; filter: brightness(1.2); transform: scale(1); }
+            100% { opacity: 1; filter: brightness(1); transform: scale(1); }
+        }
+
+        /* ✨ MIKA'S TUTORIAL TERMINAL ANIMATIONS ✨ */
+        @keyframes tutorialBoot {
+            0% { opacity: 0; filter: brightness(3); transform: scale(1.05); }
+            25% { opacity: 0.5; filter: brightness(2); }
+            50% { opacity: 0.8; filter: brightness(1.2); }
+            100% { opacity: 1; filter: brightness(1); transform: scale(1); }
+        }
+        @keyframes scanlineScroll {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100vh); }
+        }
+        @keyframes cursorBlink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+        @keyframes glitchText {
+            0%, 100% { transform: translate(0); filter: hue-rotate(0deg); }
+            20% { transform: translate(-2px, 1px); filter: hue-rotate(5deg); }
+            40% { transform: translate(2px, -1px); filter: hue-rotate(-5deg); }
+            60% { transform: translate(-1px, -1px); filter: hue-rotate(3deg); }
+            80% { transform: translate(1px, 1px); filter: hue-rotate(-3deg); }
+        }
+        /* ✨ MIKA'S HIGH-PERFORMANCE SHADERS (Fixed Tearing/Bugs) ✨ */
+        @keyframes gfPhaseIn {
+            0% { opacity: 0; transform: scale(1.03) translateZ(0); filter: saturate(1.2); }
+            100% { opacity: 1; transform: scale(1) translateZ(0); filter: saturate(1); }
+        }
+        @keyframes gfPhaseOut {
+            0% { opacity: 1; transform: scale(1) translateZ(0); filter: saturate(1); }
+            100% { opacity: 0; transform: scale(0.97) translateZ(0); filter: saturate(0.8); }
+        }
+
+        /* ✨ MIKA'S FAVORITE PHASE GLOW ✨ */
+        @keyframes favPhaseGlow {
+            0% { box-shadow: inset 0 0 0 rgba(255, 215, 0, 0); transform: scale(1); }
+            15% { box-shadow: inset 0 0 25px rgba(255, 215, 0, 0.5), 0 0 20px rgba(255, 215, 0, 0.4); transform: scale(1.03); }
+            40% { box-shadow: inset 0 0 35px rgba(255, 215, 0, 0.4), 0 0 30px rgba(255, 215, 0, 0.6); transform: scale(1.015); }
+            70% { box-shadow: inset 0 0 20px rgba(255, 215, 0, 0.25), 0 0 15px rgba(255, 215, 0, 0.25); transform: scale(1); }
+            100% { box-shadow: inset 3px 0 8px rgba(255, 215, 0, 0.12); transform: scale(1); }
+        }
+
+        /* ✨ MIKA'S SSR HOLOGRAPHIC GLOW & REVEAL ✨ */
+        .is-ssr {
+            box-shadow: 0 0 25px rgba(255, 215, 0, 0.45), inset 0 0 15px rgba(255, 255, 255, 0.2) !important;
+            animation: ssrPulse 2s infinite alternate ease-in-out;
+        }
+
+        @keyframes ssrPulse {
+            0% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.4), 0 0 10px rgba(255, 16, 122, 0.2); }
+            100% { box-shadow: 0 0 35px rgba(255, 215, 0, 0.8), 0 0 20px rgba(0, 255, 255, 0.4); }
+        }
+
+        .silhouette-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 13, 22, 0.98); /* MIKA'S GPU SAVER: Solid obsidian! */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 25;
+            transition: opacity 0.5s ease;
+        }
+
+        .silhouette-overlay:hover .summon-rune {
+            transform: scale(1.1) rotate(90deg);
+            color: var(--accent);
+        }
+
+        .summon-rune {
+            font-size: 36px;
+            color: #FFD700;
+            margin-bottom: 12px;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: runeFloat 2s infinite ease-in-out;
+        }
+
+        @keyframes runeFloat {
+            0%, 100% { transform: translateY(0px); text-shadow: 0 0 10px rgba(255, 215, 0, 0.6); }
+            50% { transform: translateY(-6px); text-shadow: 0 0 20px rgba(255, 16, 122, 0.9); }
+        }
+
+        .eye-lock-active {
+            transform-origin: 50% 32% !important;
+            transform: scale(2.5) !important;
+        }
+
+        .resume-screen.fading { animation: resumeFadeOut 0.6s ease forwards; }
+        .resume-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; width: 100vw; background: #0B0914; gap: 24px; animation: csd-rise 0.4s ease; }
+        .resume-spinner { width: 48px; height: 48px; border: 3px solid rgba(255, 16, 122, 0.15); border-top-color: #FF107A; border-radius: 50%; animation: resumeSpin 0.8s linear infinite; }
+        .resume-title { color: #FF107A; font-size: 1.3rem; font-weight: 800; letter-spacing: 0.15em; animation: resumePulse 2s ease-in-out infinite; }
+        .resume-subtitle { color: #888; font-size: 0.9rem; font-style: italic; }
+        
+        /* Legacy dialog CSS purged — terminal dialog styles defined above */
+
+        /* ✨ MIKA'S HIGH-PERFORMANCE ATMOSPHERE ENGINE ✨ */
+        .mika-atmosphere { position: absolute; inset: 0; pointer-events: none; z-index: 2; overflow: hidden; border-radius: 26px; transform: translateZ(0); }
+        
+        /* OVERLAYS THAT POP */
+        .mika-rim-light { position: absolute; inset: 0; box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(255, 16, 122, 0.8), inset 0 0 2px rgba(255, 255, 255, 0.9); border-radius: 26px; mix-blend-mode: screen; pointer-events: none; }
+        .mika-holo-pop { position: absolute; inset: -50%; width: 200%; height: 200%; background: conic-gradient(from 0deg at 50% 50%, transparent 0deg, rgba(255,255,255,0.15) 30deg, transparent 60deg, rgba(0,229,255,0.15) 150deg, transparent 180deg, rgba(255,16,122,0.15) 240deg, transparent 300deg); animation: holoSpin 8s linear infinite; mix-blend-mode: color-dodge; pointer-events: none; }
+        .mika-vivid { position: absolute; inset: 0; background: radial-gradient(circle at 50% 50%, transparent 30%, rgba(0,0,0,0.5) 150%); mix-blend-mode: overlay; pointer-events: none; }
+        @keyframes holoSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* WEATHER & PARTICLES (Crisp & Bright) */
+        .mika-rain { position: absolute; inset: -20%; width: 140%; height: 140%; background-image: radial-gradient(ellipse 1px 25px at 20% 50%, rgba(255,255,255,0.7) 0%, transparent 100%), radial-gradient(ellipse 1px 35px at 70% 30%, rgba(255,255,255,0.6) 0%, transparent 100%), radial-gradient(ellipse 2px 45px at 40% 80%, rgba(255,255,255,0.4) 0%, transparent 100%); background-size: 40px 90px, 70px 130px, 110px 170px; animation: sharpRain 0.8s linear infinite; transform: rotate(12deg) translateZ(0); will-change: background-position; opacity: 0.9; mix-blend-mode: screen; }
+        @keyframes sharpRain { 0% { background-position: 0 0, 0 0, 0 0; } 100% { background-position: 0 90px, 0 130px, 0 170px; } }
+        
+        .mika-particle { position: absolute; animation-timing-function: linear; animation-iteration-count: infinite; pointer-events: none; will-change: transform, opacity; }
+        @keyframes floatUp { 0% { transform: translate3d(0, 80vh, 0) rotate(0deg) scale(0.8); opacity: 0; } 20% { opacity: 1; } 80% { opacity: 1; } 100% { transform: translate3d(0, -10vh, 0) rotate(180deg) scale(1.3); opacity: 0; } }
+        @keyframes fallDownSakura { 0% { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 0; } 20% { opacity: 1; } 80% { opacity: 1; } 100% { transform: translate3d(50px, 85vh, 0) rotate(360deg) scale(1.2); opacity: 0; } }
+        @keyframes twinkle { 0%, 100% { opacity: 0; transform: scale(0.5) translateZ(0); } 50% { opacity: 1; transform: scale(1.5) translateZ(0); } }
+        /* ✨ MIKA'S JRPG BATTLE PHYSICS ✨ */
+        @keyframes jrpgShake { 0% { transform: translateX(0); } 20% { transform: translateX(-8px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-8px); } 80% { transform: translateX(8px); } 100% { transform: translateX(0); } }
+        @keyframes jrpgLunge { 0% { transform: translateY(0) scale(1); } 50% { transform: translateY(-30px) scale(1.1); } 100% { transform: translateY(0) scale(1); } }
+        @keyframes jrpgBreathe { 0% { transform: scaleY(1) translateY(0); } 100% { transform: scaleY(1.02) translateY(-2px); } }
+        .jrpg-sprite { transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); filter: drop-shadow(0 10px 15px rgba(0,0,0,0.8)); transform-origin: bottom center; }
+        .jrpg-sprite.idle { animation: jrpgBreathe 3s ease-in-out infinite alternate; }
+        .jrpg-sprite.taking-damage { animation: jrpgShake 0.4s ease-in-out; filter: drop-shadow(0 0 20px #FF3333) sepia(1) hue-rotate(-50deg) saturate(5); }
+        .jrpg-sprite.attacking { animation: jrpgLunge 0.5s ease-in-out; z-index: 50; }
+        .jrpg-hud-container { animation: fadeIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+
+        /* ✨ MIKA'S CYBERDECK DAW STYLES ✨ */
+        .deck-btn { background: rgba(0, 229, 255, 0.06); border: 1px solid #00E5FF; color: #00E5FF; font-size: 11px; font-weight: 800; padding: 10px 14px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; letter-spacing: 0.08em; text-transform: uppercase; box-shadow: 0 0 10px rgba(0,229,255,0.15), inset 0 0 8px rgba(0,229,255,0.05); transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); }
+        .deck-btn:hover:not(:disabled) { background: rgba(0, 229, 255, 0.2); box-shadow: 0 0 20px rgba(0,229,255,0.4), inset 0 0 12px rgba(0,229,255,0.1); transform: translateY(-2px); }
+        .deck-btn:active:not(:disabled) { transform: translateY(0) scale(0.98); }
+        .deck-btn:disabled { opacity: 0.35; cursor: not-allowed; border-color: #444; color: #666; box-shadow: none; }
+        .deck-btn.pink { border-color: #FF107A; color: #FF107A; background: rgba(255, 16, 122, 0.08); box-shadow: 0 0 10px rgba(255,16,122,0.15); }
+        .deck-btn.pink:hover:not(:disabled) { background: rgba(255, 16, 122, 0.22); box-shadow: 0 0 20px rgba(255,16,122,0.4); }
+        .deck-btn.purple { border-color: #B533FF; color: #B533FF; background: rgba(181, 51, 255, 0.08); box-shadow: 0 0 10px rgba(181,51,255,0.15); }
+        .deck-btn.purple:hover:not(:disabled) { background: rgba(181, 51, 255, 0.22); box-shadow: 0 0 20px rgba(181,51,255,0.4); }
+        .deck-btn.gold { border-color: #FFD700; color: #FFD700; background: rgba(255, 215, 0, 0.08); box-shadow: 0 0 10px rgba(255,215,0,0.15); }
+        .deck-btn.gold:hover:not(:disabled) { background: rgba(255, 215, 0, 0.22); box-shadow: 0 0 20px rgba(255,215,0,0.4); }
+        .deck-input { width: 100%; background: #08060F; border: 1px solid rgba(0, 229, 255, 0.25); color: #C8E8F0; padding: 10px 14px; border-radius: 4px; font-family: inherit; font-size: 12px; outline: none; box-shadow: inset 0 0 8px rgba(0,0,0,0.8); transition: border-color 0.2s, box-shadow 0.2s; }
+        .deck-input:focus { border-color: #00E5FF; box-shadow: 0 0 12px rgba(0,229,255,0.25), inset 0 0 8px rgba(0,229,255,0.05); }
+        
+        .walkman-housing { width: 100%; max-width: 440px; background: linear-gradient(175deg, #1C172E 0%, #0F0B1A 40%, #08060D 100%); border: 2px solid rgba(0, 229, 255, 0.4); border-radius: 16px; box-shadow: 0 25px 60px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,255,255,0.15), inset 0 0 30px rgba(0,229,255,0.1), 0 0 30px rgba(0,229,255,0.2); padding: 18px; position: relative; animation: deckEnter 0.4s ease-out; }
+        .cassette-bay { background: #030206; border: 2px solid rgba(0, 229, 255, 0.35); border-radius: 10px; padding: 14px; position: relative; box-shadow: inset 0 0 30px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.5); overflow: hidden; display: flex; flex-direction: column; gap: 12px; }
+        .tape-mechanism { display: flex; justify-content: space-around; align-items: center; padding: 8px 0; position: relative; background: rgba(255, 255, 255, 0.015); border-radius: 8px; border: 1px dashed rgba(255, 255, 255, 0.08); }
+        .tape-reel { width: 64px; height: 64px; border-radius: 50%; background: #141021; border: 2px solid rgba(255, 255, 255, 0.2); box-shadow: 0 0 12px rgba(0,0,0,0.9), inset 0 0 15px rgba(0,229,255,0.25); position: relative; display: grid; place-items: center; }
+        .tape-reel.spinning { animation: resumeSpin 2.2s linear infinite; }
+        .tape-spoke { position: absolute; width: 6px; height: 100%; background: rgba(0, 229, 255, 0.5); border-radius: 2px; }
+        .tape-spoke:nth-child(2) { transform: rotate(60deg); }
+        .tape-spoke:nth-child(3) { transform: rotate(120deg); }
+        .tape-hub { width: 24px; height: 24px; border-radius: 50%; background: #07050C; border: 2px solid #00E5FF; z-index: 2; box-shadow: 0 0 10px #00E5FF; }
+        
+        .vu-meter-bar { display: flex; gap: 3px; align-items: flex-end; height: 18px; }
+        .vu-seg { width: 4px; height: 100%; background: rgba(255, 255, 255, 0.08); border-radius: 1px; transition: background 0.08s ease; }
+        .vu-seg.active.green { background: #00FF41; box-shadow: 0 0 6px #00FF41; }
+        .vu-seg.active.yellow { background: #FFD700; box-shadow: 0 0 6px #FFD700; }
+        .vu-seg.active.red { background: #FF107A; box-shadow: 0 0 6px #FF107A; }
+
+        .gacha-card-deck { position: relative; width: 100%; max-width: 380px; height: 480px; display: flex; align-items: center; justify-content: center; perspective: 1200px; touch-action: none; }
+        .concept-card { position: absolute; inset: 0; background: linear-gradient(155deg, #18122B 0%, #0D0917 60%, #05030A 100%); border-radius: 14px; border: 2px solid rgba(0, 229, 255, 0.4); box-shadow: 0 25px 50px rgba(0,0,0,0.9), inset 0 0 25px rgba(0,229,255,0.1); padding: 20px; display: flex; flex-direction: column; justify-content: space-between; cursor: grab; user-select: none; touch-action: none; transform-style: preserve-3d; transition: border-color 0.3s, box-shadow 0.3s; }
+        .concept-card:active { cursor: grabbing; }
+        .concept-card.is-ssr { border-color: #FFD700; box-shadow: 0 0 35px rgba(255,215,0,0.4), inset 0 0 30px rgba(255,215,0,0.2); background: linear-gradient(155deg, #241B08 0%, #140F04 60%, #070501 100%); }
+        .concept-card.is-rare { border-color: #B533FF; box-shadow: 0 0 25px rgba(181,51,255,0.35), inset 0 0 20px rgba(181,51,255,0.15); }
+        @keyframes deckEnter { 0% { opacity: 0; transform: scale(0.95) translateY(15px); filter: blur(4px); } 100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); } }
