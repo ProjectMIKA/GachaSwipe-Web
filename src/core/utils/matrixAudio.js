@@ -207,6 +207,104 @@ class MatrixAudioEngine {
     // 🎧 PROCEDURAL SUBTLE SOUND EFFECTS
     // =========================================================================
 
+    playLike() {
+        if (this.isMuted) return;
+        const ctx = this.initContext();
+        if (!ctx) return;
+        this.resume();
+        const t = ctx.currentTime;
+        [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = "triangle";
+            osc.frequency.setValueAtTime(freq, t + idx * 0.04);
+            gain.gain.setValueAtTime(0.045, t + idx * 0.04);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + idx * 0.04 + 0.14);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t + idx * 0.04);
+            osc.stop(t + idx * 0.04 + 0.15);
+        });
+    }
+
+    playPass() {
+        if (this.isMuted) return;
+        const ctx = this.initContext();
+        if (!ctx) return;
+        this.resume();
+        const t = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(320, t);
+        osc.frequency.exponentialRampToValueAtTime(80, t + 0.08);
+        gain.gain.setValueAtTime(0.04, t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(t);
+        osc.stop(t + 0.09);
+    }
+
+    playClick() {
+        if (this.isMuted) return;
+        const ctx = this.initContext();
+        if (!ctx) return;
+        this.resume();
+        const t = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(1400, t);
+        osc.frequency.exponentialRampToValueAtTime(800, t + 0.015);
+        gain.gain.setValueAtTime(0.03, t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.015);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(t);
+        osc.stop(t + 0.02);
+    }
+
+    playDecrypt() {
+        if (this.isMuted) return;
+        const ctx = this.initContext();
+        if (!ctx) return;
+        this.resume();
+        const t = ctx.currentTime;
+        [1800, 2400, 3200].forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(freq, t + idx * 0.03);
+            gain.gain.setValueAtTime(0.03, t + idx * 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + idx * 0.03 + 0.05);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t + idx * 0.03);
+            osc.stop(t + idx * 0.03 + 0.06);
+        });
+    }
+
+    playSummon() {
+        if (this.isMuted) return;
+        const ctx = this.initContext();
+        if (!ctx) return;
+        this.resume();
+        const t = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(220, t);
+        osc.frequency.exponentialRampToValueAtTime(880, t + 0.35);
+        gain.gain.setValueAtTime(0.01, t);
+        gain.gain.linearRampToValueAtTime(0.04, t + 0.2);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(t);
+        osc.stop(t + 0.36);
+    }
+
     playShoot(weaponType = 'NORMAL') {
         if (this.isMuted) return;
         const ctx = this.initContext();

@@ -1,3 +1,4 @@
+import { matrixAudio } from '../core/utils/matrixAudio.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { generateCharacterPersona, NanoGPTError } from './aiClient.js';
 import { getApiKey } from './db.js';
@@ -34,7 +35,7 @@ export function RoleplayModal({ isOpen, onClose, character }) {
         const userMsg = input.trim();
         setInput('');
         const updatedMessages = [...messages, { role: 'user', content: userMsg, timestamp: Date.now() }];
-        setMessages(updatedMessages);
+        matrixAudio.playClick(); setMessages(updatedMessages);
         setIsLoading(true);
 
         try {
@@ -136,7 +137,7 @@ Tone: Deeply in-character, using light asterisks for actions like *tilts head pl
                         </div>
                     </div>
                     <button
-                        onClick={onClose}
+                        onClick={() => { matrixAudio.playClick(); onClose(); }}
                         style={{
                             background: 'transparent', border: 'none', color: '#aaa',
                             fontSize: '20px', cursor: 'pointer', padding: '4px 8px'

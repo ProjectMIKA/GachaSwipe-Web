@@ -1,3 +1,4 @@
+import { matrixAudio } from '../core/utils/matrixAudio.js';
 import React, { useState } from 'react';
 import { useCards, deleteCard, saveCard } from './db.js';
 
@@ -88,7 +89,7 @@ export function RosterModal({ isOpen, onClose, onSelectCard, onOpenChat }) {
                             EXPORT
                         </button>
                         <button
-                            onClick={onClose}
+                            onClick={() => { matrixAudio.playClick(); onClose(); }}
                             style={{
                                 background: 'transparent', border: 'none', color: '#aaa',
                                 fontSize: '20px', cursor: 'pointer', padding: '4px 8px'

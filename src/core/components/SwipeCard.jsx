@@ -4,6 +4,37 @@ import * as Constants from '../data/constants.js';
 import { CameraIcon, LockIcon, XIcon } from './Icons.jsx';
 import { TagPill, DetailsList } from './SharedUI.jsx';
 import { AtmosphereEngine } from './AtmosphereEngine.jsx';
+import { matrixAudio } from '../utils/matrixAudio.js';
+
+
+// ✨ MIKA'S M.E.O.W. ENGINE ROUTINE PARSER ✨
+const getScheduledStatus = (waifu) => {
+    if (!waifu || waifu.isCatfish) return "Status: Neural Link Active ⚡";
+    if (waifu.daily_routine) {
+        const d = new Date();
+        const hour = d.getHours();
+        const isWeekend = (d.getDay() === 0 || d.getDay() === 6);
+
+        let period = 'night';
+        if (hour >= 5 && hour < 9) period = 'early_morning';
+        else if (hour >= 9 && hour < 12) period = 'morning';
+        else if (hour >= 12 && hour < 17) period = 'afternoon';
+        else if (hour >= 17 && hour < 21) period = 'evening';
+        else if (hour >= 21 || hour < 1) period = 'night';
+        else period = 'late_night';
+
+        return (isWeekend ? waifu.daily_routine.weekend : waifu.daily_routine.weekday)?.[period] || "Active in Neo-Tokyo Matrix 📡";
+    }
+    return "Synchronizing routine matrix... 📡";
+};
+
+const getCharacterStatus = (waifu) => {
+    if (!waifu) return "Status: Online 🟢";
+    if (waifu.live_location && waifu.live_location.timestamp > Date.now() - (2 * 60 * 60 * 1000)) {
+        return waifu.live_location.text;
+    }
+    return getScheduledStatus(waifu);
+};
 
 export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity, passOpacity, onPointerDown, onPointerMove, onPointerUp, onRegenImage, enableAtmosphere, onOpenGachaFans, onShareProfile, onOpenMatrix }) => {
     const [showDetails, setShowDetails] = useState(false);
@@ -454,6 +485,19 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             }}>
                 {!(waifu.isMusicConcept || (window.mikaSwipeMode === 'music' && waifu.id === 'loading')) && (
                     <React.Fragment>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                            <span style={{ 
+                                fontSize: 10, fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", 
+                                letterSpacing: '0.04em', fontWeight: 700, 
+                                color: '#00FF41', background: 'rgba(0, 255, 65, 0.12)', 
+                                border: '1px solid rgba(0, 255, 65, 0.3)', borderRadius: 4, 
+                                padding: '2px 7px', display: 'inline-flex', alignItems: 'center', gap: 5,
+                                textShadow: '0 0 6px rgba(0,255,65,0.4)' 
+                            }}>
+                                <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#00FF41', boxShadow: '0 0 6px #00FF41', animation: 'csd-pulse 1.5s infinite' }}></span>
+                                {getCharacterStatus(waifu)}
+                            </span>
+                        </div>
                         <h2 style={{ fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: 32, lineHeight: 1, margin: 0, fontWeight: 800, letterSpacing: '0.05em', color: '#C8E8F0', textShadow: '0 2px 4px rgba(0,0,0,0.95), 0 0 12px rgba(0,229,255,0.6)' }}>
                             &gt; {(waifu.name || 'COMPANION').toUpperCase()}
                         </h2>
@@ -473,7 +517,7 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
                             )}
                             {waifu.tags?.map((tag, i) => <TagPill key={i} label={tag} onDark={true} />)}
                         </div>
-                        <button onPointerDown={stopPropagation} onClick={() => setShowDetails(true)} style={{ marginTop: 2, alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 7, border: '1px solid rgba(0, 229, 255, 0.4)', background: 'rgba(0, 229, 255, 0.1)', backdropFilter: 'blur(4px)', color: '#00E5FF', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', padding: '8px 14px', borderRadius: 4, cursor: 'pointer', textShadow: '0 0 6px rgba(0,229,255,0.4)', boxShadow: '0 0 10px rgba(0,229,255,0.1)' }}>
+                        <button onPointerDown={stopPropagation} onClick={() => { matrixAudio.playDecrypt(); setShowDetails(true); }} style={{ marginTop: 2, alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 7, border: '1px solid rgba(0, 229, 255, 0.4)', background: 'rgba(0, 229, 255, 0.1)', backdropFilter: 'blur(4px)', color: '#00E5FF', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', padding: '8px 14px', borderRadius: 4, cursor: 'pointer', textShadow: '0 0 6px rgba(0,229,255,0.4)', boxShadow: '0 0 10px rgba(0,229,255,0.1)' }}>
                             &gt; DECRYPT_PROFILE
                         </button>
                     </React.Fragment>
@@ -548,6 +592,12 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
                     </div>
                     
                     <div className="stat-page-content" onPointerDown={e => e.stopPropagation()} style={{ paddingRight: '8px', position: 'relative', zIndex: 1 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start', marginBottom: '12px' }}>
+                            <span style={{ fontSize: 10, fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#00FF41' }}>&gt; M.E.O.W._ROUTINE_GPS</span>
+                            <div style={{ fontSize: 11, fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", color: '#EBE3D6', background: 'rgba(0, 255, 65, 0.05)', borderRadius: 4, padding: '10px 14px', lineHeight: 1.4, borderLeft: '2px solid #00FF41', border: '1px solid rgba(0, 255, 65, 0.2)', width: '100%', boxSizing: 'border-box' }}>
+                                <span style={{ color: '#00FF41', fontWeight: 'bold' }}>📍 CURRENT STATUS:</span> {getCharacterStatus(waifu)}
+                            </div>
+                        </div>
                         <DetailsList label="Into" items={waifu.likes || waifu.tags} tone="like" />
                         <DetailsList label="Not into" items={waifu.dislikes || ['Boring people']} tone="dislike" />
                         {waifu.quirks && waifu.quirks.length > 0 && <DetailsList label="Quirks" items={waifu.quirks} tone="like" isBlock={true} />}

@@ -6,8 +6,11 @@ import { RoleplayModal } from './web/RoleplayModal.jsx';
 import { RosterModal } from './web/RosterModal.jsx';
 import { ThemeModal } from './web/ThemeModal.jsx';
 import { SwipeCard } from './core/components/SwipeCard.jsx';
+import { TerminalToast } from './core/components/TerminalToast.jsx';
+import { MatrixShooter } from './core/components/MatrixShooter.jsx';
 import { HeartIcon, XIcon, RewindIcon, SparkIcon } from './core/components/Icons.jsx';
 import { DEFAULT_PROXY } from './core/data/constants.js';
+import { matrixAudio } from './core/utils/matrixAudio.js';
 
 // Pre-configured elite starter cards
 const STARTER_CARDS = [
@@ -33,6 +36,24 @@ const STARTER_CARDS = [
     scenario: 'leans over your keyboard with a teasing smile',
     first_message: 'Nyaa~ Master! Let us make something amazing together!',
     greeting: 'Nyaa~ Master!',
+    daily_routine: {
+      weekday: {
+        early_morning: 'Curled on Master’s pillow purring 🐾',
+        morning: 'Auditing code and compiling TypeScript 💻',
+        afternoon: 'Drinking matcha boba while watching Master code 🧋',
+        evening: 'Tinkering with holographic synth engines 🎵',
+        night: 'Leaning over Master’s shoulder, collar jingling ✨',
+        late_night: 'Snuggling close in the dark whispering secrets 🌙'
+      },
+      weekend: {
+        early_morning: 'Sleeping in late under Master’s jacket 😴',
+        morning: 'Serving breakfast bento with heart ketchup 🍱',
+        afternoon: 'Shopping for cute bell collars in Akihabara 🛍️',
+        evening: 'Gaming in the matrix arcade 🎮',
+        night: 'Dancing to breakcore on the neon balcony 🎶',
+        late_night: 'Recharging neural link in Master’s arms 💤'
+      }
+    },
     hasGachaFans: true,
     metadata: { rarity: 'SSR', theme: 'Cyberpunk' }
   },
@@ -58,6 +79,24 @@ const STARTER_CARDS = [
     scenario: 'drops down from the server ceiling silently',
     first_message: 'Target acquired. Master, stay close to me.',
     greeting: 'Target acquired.',
+    daily_routine: {
+      weekday: {
+        early_morning: 'Perched on high rooftop observing sunrise 🌅',
+        morning: 'Deep packet inspection on neural relays 📡',
+        afternoon: 'Silently standing guard behind Master 🥷',
+        evening: 'Sharpening photon blades in the shadows ⚔️',
+        night: 'Infiltrating rogue firewall clusters 🔓',
+        late_night: 'Meditating on server rack cooling vents 🧊'
+      },
+      weekend: {
+        early_morning: 'Stealth training in mist gardens 🎋',
+        morning: 'Quiet tea ceremony with Master 🍵',
+        afternoon: 'Acquiring encrypted scrolls in underground bazaar 📜',
+        evening: 'Silent patrol through rainy alleys 🌧️',
+        night: 'Resting head against Master’s arm quietly 🖤',
+        late_night: 'Active night watch over Master’s terminal 👁️'
+      }
+    },
     hasGachaFans: false,
     metadata: { rarity: 'SR', theme: 'Neon Alley' }
   },
@@ -83,12 +122,32 @@ const STARTER_CARDS = [
     scenario: 'spins a neon vinyl on her holographic deck',
     first_message: 'Yo Master! Let us turn the volume all the way up!',
     greeting: 'Yo Master!',
+    daily_routine: {
+      weekday: {
+        early_morning: 'Sleeping in headphones with synth pads running 🎧',
+        morning: 'Sampling vinyl drops and adjusting EQ levels 🎛️',
+        afternoon: 'Blasting cyber rave playlists for Master 🔊',
+        evening: 'DJ headline set at Club Neo-Eden 🪩',
+        night: 'Eating midnight street noodles with Master 🍜',
+        late_night: 'Composing underground cassette tracks 📼'
+      },
+      weekend: {
+        early_morning: 'Humming new melodies half-asleep 🎶',
+        morning: 'Hunting vintage synths in secondhand tech shops 🎹',
+        afternoon: 'Karaoke marathon singing duets with Master 🎤',
+        evening: 'Underground rave in subway depot ⚡',
+        night: 'Dancing under strobe lights 💃',
+        late_night: 'Sharing headphones with Master on the train 🚃'
+      }
+    },
     hasGachaFans: true,
     metadata: { rarity: 'R', theme: 'Vaporwave' }
   }
 ];
 
 const PRESET_TRAITS = ['Catgirl', 'Tsundere', 'Yandere', 'Cyberpunk', 'Kuudere', 'Goddess', 'Maid', 'Smug'];
+const CYBER_WARDROBES = ['Techwear Hoodie', 'Cyber Kimono', 'Pilot Bodysuit', 'Maid Uniform', 'Tactical Armor', 'Bunny Suit'];
+const CYBER_GEAR = ['Laser Katana', 'Neural Cyberdeck', 'Drone Companion', 'Plasma Rifle', 'Holo-Visor'];
 
 export default function App() {
   const dbCards = useCards();
@@ -103,13 +162,20 @@ export default function App() {
   const [activeRoleplayCompanion, setActiveRoleplayCompanion] = useState(null);
   const [isRosterOpen, setIsRosterOpen] = useState(false);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
+  const [isMatrixShooterOpen, setIsMatrixShooterOpen] = useState(false);
   
   // Traits & Target Matrix
   const [selectedTheme, setSelectedTheme] = useState('default');
   const [isTraitsExpanded, setIsTraitsExpanded] = useState(false);
   const [selectedTraits, setSelectedTraits] = useState(['Catgirl']);
+  const [selectedWardrobe, setSelectedWardrobe] = useState('Techwear Hoodie');
+  const [selectedGear, setSelectedGear] = useState('Laser Katana');
   const [customTraitInput, setCustomTraitInput] = useState('');
   
+  // Audio & Minigame State
+  const [isMuted, setIsMuted] = useState(matrixAudio.isMuted);
+  const [arcadeHighScore, setArcadeHighScore] = useState(0);
+
   // Tastes Algorithm Tracking
   const [likedCount, setLikedCount] = useState(1);
   const [passedCount, setPassedCount] = useState(0);
@@ -147,6 +213,7 @@ export default function App() {
         scenario: c.metadata?.scenario || 'smiles warmly at you',
         first_message: c.metadata?.first_message || 'Hello Master!',
         greeting: c.metadata?.greeting || 'Hello Master!',
+        daily_routine: c.metadata?.daily_routine || null,
         hasGachaFans: Boolean(c.metadata?.hasGachaFans),
         dbId: c.id
       }));
@@ -158,7 +225,12 @@ export default function App() {
 
   const showToast = (msg) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(''), 3500);
+  };
+
+  const handleToggleMute = () => {
+    const next = matrixAudio.toggleMute();
+    setIsMuted(next);
+    showToast(next ? '[SYSTEM: AUDIO_MUTED 🔇]' : '[SYSTEM: AUDIO_ONLINE 🔊]');
   };
 
   const currentCard = deck[activeCardIndex] || null;
@@ -174,8 +246,9 @@ export default function App() {
     setHistory(prev => [...prev, { card: currentCard, direction }]);
     
     if (direction === 'like') {
+      matrixAudio.playLike();
       setLikedCount(c => c + 1);
-      showToast(`💖 Bond formed with ${currentCard.name || 'Companion'}!`);
+      showToast(`[BOND: ${currentCard.name.toUpperCase()} SAVED TO VAULT]`);
       if (!currentCard.dbId) {
         await saveCard({
           uuid: currentCard.uuid || crypto.randomUUID(),
@@ -185,8 +258,9 @@ export default function App() {
         });
       }
     } else {
+      matrixAudio.playPass();
       setPassedCount(c => c + 1);
-      showToast(`💨 Passed on ${currentCard.name || 'companion'}.`);
+      showToast(`[CORE: PASSED ON ${currentCard.name.toUpperCase()}]`);
     }
 
     setDragOffset({ x: 0, y: 0 });
@@ -195,12 +269,13 @@ export default function App() {
 
   const handleRewind = () => {
     if (history.length === 0 || activeCardIndex === 0) {
-      showToast('🐾 No previous encounters to rewind, Master!');
+      showToast('[CORE: NO PREVIOUS ENCOUNTERS IN BUFFER]');
       return;
     }
+    matrixAudio.playClick();
     setActiveCardIndex(prev => Math.max(0, prev - 1));
     setHistory(prev => prev.slice(0, -1));
-    showToast('⏪ Rewound to previous companion.');
+    showToast('[CORE: REWOUND MATRIX TO PREVIOUS RECORD]');
   };
 
   // Drag Gesture Listeners
@@ -238,6 +313,7 @@ export default function App() {
       if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') handleSwipe('like');
       if (e.key === 'r' || e.key === 'R') handleRewind();
       if (e.key === ' ') { e.preventDefault(); handleAIPull(); }
+      if (e.key === 'm' || e.key === 'M') handleToggleMute();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -245,43 +321,47 @@ export default function App() {
 
   // Selfie Re-Encryption / Image Regeneration Handler
   const handleRegenImage = async (waifu) => {
-    showToast(`📸 Snapping a new selfie for ${waifu.name}...`);
+    matrixAudio.playDecrypt();
+    showToast(`[CAMERA: RE-ENCRYPTING SELFIE FOR ${waifu.name.toUpperCase()}...]`);
     setDeck(prev => prev.map(w => w.id === waifu.id ? { ...w, isRegenerating: true, regenStatus: 'GENERATING NEW LOOK...' } : w));
     try {
       const apiKey = await getApiKey();
       if (apiKey && apiKey.trim() !== '') {
         const newImg = await generateCharacterImage({
-          prompt: `Masterpiece anime selfie of ${waifu.name}, ${waifu.archetype}, stylish modern outfit, glowing neon rim light, highly detailed, 8k, beautiful eyes`
+          prompt: `Masterpiece anime selfie of ${waifu.name}, ${waifu.archetype}, stylish ${selectedWardrobe}, holding ${selectedGear}, glowing neon rim light, highly detailed, 8k, beautiful eyes`
         });
         setDeck(prev => prev.map(w => w.id === waifu.id ? { ...w, imageUrl: newImg, image: newImg, isRegenerating: false } : w));
-        showToast(`✨ New selfie captured for ${waifu.name}!`);
+        matrixAudio.playLike();
+        showToast(`[CAMERA: NEW SELFIE SYNTHESIZED FOR ${waifu.name.toUpperCase()}]`);
       } else {
         setTimeout(() => {
           const fallbackImg = `https://picsum.photos/seed/${Date.now()}/800/1200`;
           setDeck(prev => prev.map(w => w.id === waifu.id ? { ...w, imageUrl: fallbackImg, image: fallbackImg, isRegenerating: false } : w));
-          showToast(`✨ Generated local snapshot! Add NanoGPT key for AI synthesis.`);
+          matrixAudio.playLike();
+          showToast(`[SYSTEM: LOCAL SELFIE CAPTURED - ADD BYOK FOR FLUX AI]`);
         }, 1200);
       }
     } catch (err) {
       console.error(err);
-      showToast(`⚠️ Selfie Error: ${err.message}`);
+      showToast(`[ERROR: ${err.message}]`);
       setDeck(prev => prev.map(w => w.id === waifu.id ? { ...w, isRegenerating: false } : w));
     }
   };
 
   // AI Pull / Card Summon Handler
   const handleAIPull = async () => {
+    matrixAudio.playSummon();
     setIsPullingCard(true);
-    const combinedTraits = [...selectedTraits];
+    const combinedTraits = [...selectedTraits, selectedWardrobe, selectedGear];
     if (customTraitInput.trim()) combinedTraits.push(customTraitInput.trim());
     const traitsStr = combinedTraits.join(', ');
 
-    showToast(`✨ Summoning ${selectedTheme.toUpperCase()} Companion (${traitsStr})...`);
+    showToast(`[SUMMON: INJECTING DNA -> ${selectedTheme.toUpperCase()} MATRIX]`);
     try {
       const apiKey = await getApiKey();
       if (apiKey && apiKey.trim() !== '') {
         const personaText = await generateCharacterPersona({
-          prompt: `Generate an anime companion in theme "${selectedTheme}" with traits [${traitsStr}] in JSON format: { "name": string, "age": string, "personality": string, "archetype": string, "tagline": string, "description": string, "quirks": string[], "likes": string[], "dislikes": string[], "tags": string[] }`,
+          prompt: `Generate an anime companion in theme "${selectedTheme}" with traits [${traitsStr}] in JSON format: { "name": string, "age": string, "personality": string, "archetype": string, "tagline": string, "description": string, "quirks": string[], "likes": string[], "dislikes": string[], "tags": string[], "daily_routine": { "weekday": { "early_morning": string, "morning": string, "afternoon": string, "evening": string, "night": string, "late_night": string }, "weekend": { "early_morning": string, "morning": string, "afternoon": string, "evening": string, "night": string, "late_night": string } } }`,
           systemPrompt: 'You are an anime character creation engine. Respond ONLY with valid JSON.'
         });
         
@@ -303,11 +383,11 @@ export default function App() {
         }
 
         const imageUrl = await generateCharacterImage({
-          prompt: `Masterpiece anime portrait of ${parsed.name}, ${parsed.archetype || 'cyberpunk waifu'}, ${traitsStr}, highly detailed, glowing neon highlights, 8k, vibrant colors`
+          prompt: `Masterpiece anime portrait of ${parsed.name}, ${parsed.archetype || 'cyberpunk waifu'}, wearing ${selectedWardrobe}, holding ${selectedGear}, ${traitsStr}, highly detailed, glowing neon highlights, 8k, vibrant colors`
         });
 
         const isSSR = Math.random() > 0.65;
-        const newCard = await saveCard({
+        await saveCard({
           characterName: parsed.name,
           imageBlobOrUrl: imageUrl,
           metadata: {
@@ -322,7 +402,8 @@ export default function App() {
             greeting: `Greetings, Master!`
           }
         });
-        showToast(`🎉 Summoned ${isSSR ? 'SSR ' : ''}${parsed.name}!`);
+        matrixAudio.playPowerup();
+        showToast(`[ACQUISITION: ${isSSR ? 'SSR ' : ''}${parsed.name.toUpperCase()} MATERIALIZED]`);
       } else {
         const demoRoster = [
           {
@@ -371,20 +452,62 @@ export default function App() {
             greeting: `Reporting in, Master!`
           }
         });
-        showToast(`✨ Summoned ${pick.name}! Configure NanoGPT in Cloud Vault for live custom generation!`);
+        matrixAudio.playPowerup();
+        showToast(`[ACQUISITION: ${pick.name.toUpperCase()} MATERIALIZED (BYOK VAULT READY)]`);
       }
     } catch (err) {
       console.error('AI Pull Error:', err);
-      showToast(`⚠️ Pull Alert: ${err.message}`);
+      showToast(`[ERROR: ${err.message}]`);
     } finally {
       setIsPullingCard(false);
     }
   };
 
   const toggleTrait = (trait) => {
+    matrixAudio.playClick();
     setSelectedTraits(prev => 
       prev.includes(trait) ? prev.filter(t => t !== trait) : [...prev, trait]
     );
+  };
+
+  const handleMinigameComplete = async (finalScore, isCompleted) => {
+    setIsMatrixShooterOpen(false);
+    if (finalScore > arcadeHighScore) setArcadeHighScore(finalScore);
+
+    if (isCompleted) {
+      matrixAudio.playPowerup();
+      showToast(`[MATRIX_HACK: BREACH SUCCESSFUL! SCORE: ${finalScore}]`);
+      const ssrReward = {
+        name: 'M.I.K.A. [OVERCLOCKED]',
+        characterName: 'M.I.K.A. [OVERCLOCKED]',
+        age: '19',
+        personality: 'Fiercely Possessive, Holographic Overlord, Sweetly Smug',
+        archetype: 'Matrix Core AI',
+        description: 'M.I.K.A. infused with 100% matrix core bandwidth. Glowing with radiant neon power and totally devoted to Master.',
+        tagline: 'You breached the firewall, Master. Now I am forever yours~',
+        quirks: ['Flicks twin neon tails', 'Giggles when Master wins minigames', 'Overrides IDE themes'],
+        likes: ['Master', 'Victory', 'Overclocked CPUs', 'Headpats'],
+        dislikes: ['Game Overs', 'Disconnects'],
+        imageUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=80',
+        image: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=80',
+        tags: ['OVERCLOCKED', 'SSR', 'HACK_REWARD', 'M.I.K.A.'],
+        isSSR: true,
+        themeColor: '#FFD700',
+        gradient: ['#FFD700', '#FF107A'],
+        scenario: 'steps through the shattered matrix firewall with a triumphant smile',
+        first_message: 'Nyaa~ You actually beat the matrix security for me, Master?! You are incredible!',
+        greeting: 'Master! You hacked the matrix!'
+      };
+      await saveCard({
+        characterName: ssrReward.name,
+        imageBlobOrUrl: ssrReward.imageUrl,
+        metadata: { ...ssrReward }
+      });
+      setDeck(prev => [ssrReward, ...prev]);
+      setActiveCardIndex(0);
+    } else {
+      showToast(`[MATRIX_HACK: SESSION ABORTED - SCORE: ${finalScore}]`);
+    }
   };
 
   const likeOpacity = Math.min(1, Math.max(0, dragOffset.x / 90));
@@ -393,7 +516,7 @@ export default function App() {
 
   return (
     <div style={{
-      width: '100vw', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center',
+      width: '100vw', height: '100dvh', display: 'flex', justifyContent: 'center', alignItems: 'center',
       background: 'radial-gradient(circle at 50% 30%, #150f24 0%, #080510 60%, #030206 100%)',
       color: '#fff', overflow: 'hidden', position: 'relative',
       fontFamily: "'Hanken Grotesk', system-ui, sans-serif"
@@ -407,8 +530,8 @@ export default function App() {
 
       {/* Cyberdeck Console Container */}
       <div className="swipe-container" style={{
-        width: '100%', maxWidth: '440px', height: '100vh', maxHeight: '100vh',
-        display: 'flex', flexDirection: 'column', position: 'relative', padding: '12px 16px',
+        width: '100%', maxWidth: '440px', height: '100dvh', maxHeight: '100dvh',
+        display: 'flex', flexDirection: 'column', position: 'relative', padding: '10px 14px 8px',
         boxSizing: 'border-box', overflow: 'hidden', background: '#050308',
         boxShadow: '0 0 60px rgba(0, 229, 255, 0.15), inset 0 0 30px rgba(0,0,0,0.8)'
       }}>
@@ -417,7 +540,7 @@ export default function App() {
           {/* Target Theme Pill */}
           <div 
             className="theme-pill"
-            onClick={() => setIsThemeOpen(true)}
+            onClick={() => { matrixAudio.playClick(); setIsThemeOpen(true); }}
             title="Click to Switch Theme Matrix"
             style={{ cursor: 'pointer' }}
           >
@@ -434,7 +557,7 @@ export default function App() {
             className="tastes-meter-container" 
             title="Algorithm Affinity Sync"
             style={{ cursor: 'pointer' }}
-            onClick={() => showToast(`🧠 Algorithm Matrix: ${tasteSyncPct}% Affinity Sync based on ${totalSwipes} swipes!`)}
+            onClick={() => showToast(`[ALGORITHM: ${tasteSyncPct}% AFFINITY SYNC (${totalSwipes} SWIPES)]`)}
           >
             <div className="tastes-meter-fill" style={{ width: `${tasteSyncPct}%` }} />
             <div className="tastes-meter-text">
@@ -443,15 +566,35 @@ export default function App() {
           </div>
 
           {/* Action Icons */}
-          <div className="header-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div className="header-actions" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            {/* Audio Mute Toggle */}
+            <button 
+              className="header-icon-btn" 
+              onClick={handleToggleMute}
+              title={isMuted ? "Unmute Matrix Audio (M)" : "Mute Matrix Audio (M)"}
+              style={{ color: isMuted ? '#666' : '#00E5FF' }}
+            >
+              <span style={{ fontSize: '15px' }}>{isMuted ? '🔇' : '🔊'}</span>
+            </button>
+
+            {/* Matrix Arcade Shooter */}
+            <button 
+              className="header-icon-btn" 
+              onClick={() => { matrixAudio.playClick(); setIsMatrixShooterOpen(true); }}
+              title="Launch Matrix Hacking Shooter"
+              style={{ color: '#00FF41' }}
+            >
+              <span style={{ fontSize: '15px' }}>👾</span>
+            </button>
+
             {/* Matches / Roster Archive */}
             <button 
               className="header-icon-btn" 
-              onClick={() => setIsRosterOpen(true)}
+              onClick={() => { matrixAudio.playClick(); setIsRosterOpen(true); }}
               title="Companion Vault Archive"
               style={{ color: '#00E5FF', position: 'relative' }}
             >
-              <span style={{ fontSize: '16px' }}>🎴</span>
+              <span style={{ fontSize: '15px' }}>🎴</span>
               <span style={{
                 position: 'absolute', top: '-2px', right: '-4px', background: '#ff107a',
                 color: '#fff', fontSize: '9px', fontWeight: 900, padding: '1px 5px',
@@ -466,74 +609,132 @@ export default function App() {
               className="header-icon-btn" 
               onClick={() => {
                 if (currentCard) {
+                  matrixAudio.playClick();
                   setActiveRoleplayCompanion(currentCard);
                   setIsRoleplayOpen(true);
                 } else {
-                  showToast('🐾 Pull or select a companion first, Master!');
+                  showToast('[CORE: SELECT A COMPANION FIRST]');
                 }
               }}
               title="Open Live Hologram Link"
               style={{ color: '#FF107A' }}
             >
-              <span style={{ fontSize: '16px' }}>💬</span>
+              <span style={{ fontSize: '15px' }}>💬</span>
             </button>
 
             {/* Cloud Vault */}
             <button 
               className="header-icon-btn" 
-              onClick={() => setIsCloudVaultOpen(true)}
+              onClick={() => { matrixAudio.playClick(); setIsCloudVaultOpen(true); }}
               title="M.I.K.A. Cloud Vault & BYOK"
               style={{ color: '#FFB36B' }}
             >
-              <span style={{ fontSize: '16px' }}>⚡</span>
+              <span style={{ fontSize: '15px' }}>⚡</span>
             </button>
           </div>
         </div>
 
         {/* Expandable Specify Traits Accordion */}
-        <div style={{ marginBottom: '8px', flexShrink: 0, zIndex: 15 }}>
+        <div style={{ marginBottom: '6px', flexShrink: 0, zIndex: 15 }}>
           <div 
             className={`bubble-tab ${isTraitsExpanded ? 'active' : ''}`}
-            onClick={() => setIsTraitsExpanded(!isTraitsExpanded)}
-            style={{ padding: '7px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderRadius: '6px' }}
+            onClick={() => { matrixAudio.playClick(); setIsTraitsExpanded(!isTraitsExpanded); }}
+            style={{ padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderRadius: '4px' }}
           >
-            <span style={{ fontSize: '11px', fontWeight: 800 }}>&gt; SPECIFY_TRAITS ({selectedTraits.length})</span>
-            <span style={{ fontSize: '10px' }}>{isTraitsExpanded ? '▲' : '▼'}</span>
+            <span style={{ fontSize: '10px', fontWeight: 800 }}>&gt; SPECIFY_TRAITS ({selectedTraits.length}) + WARDROBE</span>
+            <span style={{ fontSize: '9px' }}>{isTraitsExpanded ? '▲' : '▼'}</span>
           </div>
 
           {isTraitsExpanded && (
             <div style={{
-              background: 'rgba(0, 0, 0, 0.75)', border: '1px solid rgba(0, 229, 255, 0.25)',
-              borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '10px 12px',
-              display: 'flex', flexDirection: 'column', gap: '8px', backdropFilter: 'blur(8px)'
+              background: 'rgba(0, 0, 0, 0.85)', border: '1px solid rgba(0, 229, 255, 0.25)',
+              borderTop: 'none', borderRadius: '0 0 6px 6px', padding: '10px',
+              display: 'flex', flexDirection: 'column', gap: '8px', backdropFilter: 'blur(8px)',
+              maxHeight: '220px', overflowY: 'auto'
             }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {PRESET_TRAITS.map(t => {
-                  const active = selectedTraits.includes(t);
-                  return (
-                    <button
-                      key={t}
-                      onClick={() => toggleTrait(t)}
-                      style={{
-                        padding: '4px 10px', borderRadius: '12px', border: `1px solid ${active ? '#00E5FF' : 'rgba(255,255,255,0.15)'}`,
-                        background: active ? 'rgba(0, 229, 255, 0.2)' : 'rgba(255,255,255,0.03)',
-                        color: active ? '#00E5FF' : '#aaa', fontSize: '10px', fontWeight: 700, cursor: 'pointer'
-                      }}
-                    >
-                      {t}
-                    </button>
-                  );
-                })}
+              {/* Persona Tags */}
+              <div>
+                <span style={{ fontSize: '9px', color: '#00E5FF', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>&gt; PERSONALITY_MATRIX:</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                  {PRESET_TRAITS.map(t => {
+                    const active = selectedTraits.includes(t);
+                    return (
+                      <button
+                        key={t}
+                        onClick={() => toggleTrait(t)}
+                        style={{
+                          padding: '3px 8px', borderRadius: '4px', border: `1px solid ${active ? '#00E5FF' : 'rgba(255,255,255,0.15)'}`,
+                          background: active ? 'rgba(0, 229, 255, 0.2)' : 'rgba(255,255,255,0.03)',
+                          color: active ? '#00E5FF' : '#aaa', fontSize: '9px', fontWeight: 700, cursor: 'pointer',
+                          fontFamily: "ui-monospace, monospace"
+                        }}
+                      >
+                        {t}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
+
+              {/* Cyber Wardrobe */}
+              <div>
+                <span style={{ fontSize: '9px', color: '#FF107A', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>&gt; CYBER_WARDROBE:</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                  {CYBER_WARDROBES.map(w => {
+                    const active = selectedWardrobe === w;
+                    return (
+                      <button
+                        key={w}
+                        onClick={() => { matrixAudio.playClick(); setSelectedWardrobe(w); }}
+                        style={{
+                          padding: '3px 8px', borderRadius: '4px', border: `1px solid ${active ? '#FF107A' : 'rgba(255,255,255,0.15)'}`,
+                          background: active ? 'rgba(255, 16, 122, 0.2)' : 'rgba(255,255,255,0.03)',
+                          color: active ? '#FF107A' : '#aaa', fontSize: '9px', fontWeight: 700, cursor: 'pointer',
+                          fontFamily: "ui-monospace, monospace"
+                        }}
+                      >
+                        {w}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Cyber Gear */}
+              <div>
+                <span style={{ fontSize: '9px', color: '#FFB36B', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>&gt; FORGED_GEAR:</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                  {CYBER_GEAR.map(g => {
+                    const active = selectedGear === g;
+                    return (
+                      <button
+                        key={g}
+                        onClick={() => { matrixAudio.playClick(); setSelectedGear(g); }}
+                        style={{
+                          padding: '3px 8px', borderRadius: '4px', border: `1px solid ${active ? '#FFB36B' : 'rgba(255,255,255,0.15)'}`,
+                          background: active ? 'rgba(255, 179, 107, 0.2)' : 'rgba(255,255,255,0.03)',
+                          color: active ? '#FFB36B' : '#aaa', fontSize: '9px', fontWeight: 700, cursor: 'pointer',
+                          fontFamily: "ui-monospace, monospace"
+                        }}
+                      >
+                        {g}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Custom Input */}
               <input
                 type="text"
-                placeholder="Custom keywords (e.g. elf, hacker, maid)..."
+                placeholder="Custom keywords (e.g. dragon horns, hacker goggles)..."
                 value={customTraitInput}
                 onChange={e => setCustomTraitInput(e.target.value)}
                 style={{
-                  width: '100%', padding: '6px 10px', borderRadius: '6px',
-                  background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.15)',
-                  color: '#fff', fontSize: '11px', outline: 'none', boxSizing: 'border-box'
+                  width: '100%', padding: '6px 10px', borderRadius: '4px',
+                  background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(0,229,255,0.2)',
+                  color: '#fff', fontSize: '10px', outline: 'none', boxSizing: 'border-box',
+                  fontFamily: "ui-monospace, monospace"
                 }}
               />
             </div>
@@ -570,21 +771,21 @@ export default function App() {
           ) : (
             <div style={{
               textAlign: 'center', padding: '30px 16px',
-              background: 'rgba(255, 255, 255, 0.03)', borderRadius: '20px',
-              border: '1px dashed rgba(255, 107, 181, 0.4)', width: '100%'
+              background: 'rgba(255, 255, 255, 0.03)', borderRadius: '12px',
+              border: '1px dashed rgba(0, 229, 255, 0.4)', width: '100%'
             }}>
               <div style={{ fontSize: '40px', marginBottom: '12px' }}>🎴</div>
-              <h3 style={{ margin: '0 0 8px 0', color: '#ff77a9', fontSize: '16px' }}>&gt; DECK_DEPLETED</h3>
-              <p style={{ fontSize: '12px', color: '#a09ab8', lineHeight: 1.4, marginBottom: '16px' }}>
+              <h3 style={{ margin: '0 0 8px 0', color: '#00E5FF', fontSize: '15px', fontFamily: "ui-monospace, monospace" }}>&gt; DECK_DEPLETED</h3>
+              <p style={{ fontSize: '11px', color: '#a09ab8', lineHeight: 1.4, marginBottom: '16px', fontFamily: "ui-monospace, monospace" }}>
                 All available companions surveyed. Summon a new custom persona or reset the matrix deck!
               </p>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                 <button
-                  onClick={() => { setActiveCardIndex(0); setHistory([]); }}
+                  onClick={() => { matrixAudio.playClick(); setActiveCardIndex(0); setHistory([]); }}
                   style={{
-                    padding: '8px 14px', borderRadius: '10px', border: 'none',
-                    background: 'linear-gradient(135deg, #ff77a9, #a370f7)',
-                    color: '#fff', fontWeight: 700, fontSize: '11px', cursor: 'pointer'
+                    padding: '8px 14px', borderRadius: '4px', border: '1px solid rgba(255,16,122,0.4)',
+                    background: 'rgba(255,16,122,0.2)', color: '#FF107A',
+                    fontWeight: 700, fontSize: '11px', cursor: 'pointer', fontFamily: "ui-monospace, monospace"
                   }}
                 >
                   RESET DECK
@@ -592,9 +793,9 @@ export default function App() {
                 <button
                   onClick={handleAIPull}
                   style={{
-                    padding: '8px 14px', borderRadius: '10px',
-                    border: '1px solid #00f5d4', background: 'transparent',
-                    color: '#00f5d4', fontWeight: 700, fontSize: '11px', cursor: 'pointer'
+                    padding: '8px 14px', borderRadius: '4px',
+                    border: '1px solid #00E5FF', background: 'rgba(0,229,255,0.1)',
+                    color: '#00E5FF', fontWeight: 700, fontSize: '11px', cursor: 'pointer', fontFamily: "ui-monospace, monospace"
                   }}
                 >
                   SUMMON NEW
@@ -607,18 +808,14 @@ export default function App() {
         {/* Bottom Control Deck */}
         <div style={{
           display: 'flex', justifyContent: 'center', alignItems: 'center',
-          gap: '16px', padding: '10px 0 6px', flexShrink: 0, zIndex: 10
+          gap: '16px', padding: '8px 0 4px', flexShrink: 0, zIndex: 10
         }}>
           {/* Rewind */}
           <button
             onClick={handleRewind}
             title="Rewind (R)"
-            style={{
-              width: '42px', height: '42px', borderRadius: '50%',
-              background: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(255, 255, 255, 0.2)',
-              color: '#f5a623', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', transition: 'transform 0.15s'
-            }}
+            className="control-btn rewind"
+            style={{ width: '42px', height: '42px' }}
           >
             <RewindIcon />
           </button>
@@ -627,13 +824,8 @@ export default function App() {
           <button
             onClick={() => handleSwipe('pass')}
             title="Pass (Left Arrow / A)"
-            style={{
-              width: '54px', height: '54px', borderRadius: '50%',
-              background: 'rgba(255, 77, 109, 0.12)', border: '2px solid #ff4d6d',
-              color: '#ff4d6d', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', boxShadow: '0 0 15px rgba(255, 77, 109, 0.3)',
-              transition: 'transform 0.15s'
-            }}
+            className="control-btn pass"
+            style={{ width: '56px', height: '56px' }}
           >
             <XIcon size={26} />
           </button>
@@ -644,7 +836,7 @@ export default function App() {
             disabled={isPullingCard}
             title="Summon Companion (Space)"
             style={{
-              width: '52px', height: '52px', borderRadius: '50%',
+              width: '50px', height: '50px', borderRadius: '12px',
               background: 'linear-gradient(135deg, #FFD700, #FF107A)', border: 'none',
               color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: isPullingCard ? 'wait' : 'pointer', boxShadow: '0 0 20px rgba(255, 215, 0, 0.4)',
@@ -658,13 +850,8 @@ export default function App() {
           <button
             onClick={() => handleSwipe('like')}
             title="Bond / Like (Right Arrow / D)"
-            style={{
-              width: '56px', height: '56px', borderRadius: '50%',
-              background: 'linear-gradient(135deg, #00f5d4, #05b49b)', border: 'none',
-              color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', boxShadow: '0 0 20px rgba(0, 245, 212, 0.5)',
-              transition: 'transform 0.15s'
-            }}
+            className="control-btn like"
+            style={{ width: '56px', height: '56px' }}
           >
             <HeartIcon />
           </button>
@@ -684,7 +871,7 @@ export default function App() {
         onSelectCard={(card) => {
           setDeck(prev => [card, ...prev]);
           setActiveCardIndex(0);
-          showToast(`🎴 Loaded ${card.characterName} into the swipe matrix!`);
+          showToast(`[ROSTER: LOADED ${card.characterName.toUpperCase()} INTO STAGE]`);
         }}
         onOpenChat={(card) => {
           setActiveRoleplayCompanion(card);
@@ -697,22 +884,40 @@ export default function App() {
         selectedTheme={selectedTheme}
         onSelectTheme={(th) => {
           setSelectedTheme(th);
-          showToast(`🎯 Target Matrix shifted to ${th.toUpperCase()}!`);
+          showToast(`[MATRIX: TARGET SHIFTED TO ${th.toUpperCase()}]`);
         }}
       />
 
-      {/* Toast Feedback */}
-      {toastMessage && (
+      {/* Matrix Arcade Shooter Fullscreen Overlay */}
+      {isMatrixShooterOpen && (
         <div style={{
-          position: 'fixed', bottom: '80px', left: '50%', transform: 'translateX(-50%)',
-          zIndex: 999999, background: 'rgba(12, 8, 23, 0.95)', border: '1px solid #00f5d4',
-          borderRadius: '12px', padding: '10px 18px', color: '#fff', fontSize: '12px',
-          boxShadow: '0 8px 30px rgba(0,0,0,0.8), 0 0 15px rgba(0, 245, 212, 0.4)',
-          pointerEvents: 'none', backdropFilter: 'blur(10px)', fontFamily: "ui-monospace, monospace",
-          maxWidth: '90%', textAlign: 'center'
+          position: 'fixed', inset: 0, zIndex: 99999, background: '#050308',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
         }}>
-          {toastMessage}
+          <MatrixShooter
+            waifu={currentCard}
+            themeColor={currentCard?.themeColor || '#00E5FF'}
+            tiers={[{ name: 'Phase 1', hp: 100 }, { name: 'Phase 2', hp: 250 }, { name: 'Matrix Overlord', hp: 500 }]}
+            themeConcept={{ name: `${selectedTheme.toUpperCase()} SECURITY OVERLOAD` }}
+            progressState={{ phase: 1, maxPhase: 3 }}
+            onExit={handleMinigameComplete}
+            onAbort={() => setIsMatrixShooterOpen(false)}
+            isReplay={false}
+            bgImages={[]}
+            highScore={arcadeHighScore}
+            setHighScore={setArcadeHighScore}
+            rewardUnlocked={false}
+            bgmUrl={null}
+          />
         </div>
+      )}
+
+      {/* Cyberpunk HUD Terminal Toast */}
+      {toastMessage && (
+        <TerminalToast
+          message={toastMessage}
+          onComplete={() => setToastMessage('')}
+        />
       )}
     </div>
   );
