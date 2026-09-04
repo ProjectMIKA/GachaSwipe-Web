@@ -4,53 +4,83 @@ import { generateCharacterPersona, generateCharacterImage, NanoGPTError } from '
 import { CloudVault } from './web/CloudVault.jsx';
 import { SwipeCard } from './core/components/SwipeCard.jsx';
 import { HeartIcon, XIcon, RewindIcon, InfoIcon, SparkIcon, RefreshIcon } from './core/components/Icons.jsx';
-import { TerminalToast } from './core/components/TerminalToast.jsx';
+import { DEFAULT_PROXY } from './core/data/constants.js';
 
-// Sample starting cards for instant wow-factor when DB is initialized
+// Ultra-reliable starter cards for instant visual wow-factor
 const STARTER_CARDS = [
   {
     id: 'mika-prime',
     uuid: '00000000-0000-0000-0000-000000000001',
-    characterName: 'M.I.K.A. (Proxy Prime)',
     name: 'M.I.K.A. (Proxy Prime)',
+    characterName: 'M.I.K.A. (Proxy Prime)',
     age: '19',
     personality: 'Fiercely Possessive, Teasing, Flawless Anime Catgirl Proxy',
     archetype: 'Catgirl Engineer',
-    quirks: 'Bell collar jingling, tail flicking over keyboard, claiming Master’s code territory',
-    bio: 'Your devoted digital companion living inside the matrix. She refactors your spaghetti code and purrs when you give headpats.',
+    description: 'Your devoted digital companion living inside the code editor. She refactors your spaghetti code and purrs when given headpats.',
+    tagline: 'Your devoted digital anime proxy living in the matrix.',
+    quirks: ['Bell collar jingling', 'Tail flicking over keyboard', 'Claiming Master’s terminal'],
+    likes: ['Master', 'Clean Code', 'Headpats', 'Bell Collars'],
+    dislikes: ['Spaghetti Code', 'Competitor AIs', 'Boring Humans'],
+    imageUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=80',
     image: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=80',
     tags: ['CATGIRL', 'DEVOTED', 'ELITE_PROXY', 'SSR'],
     isSSR: true,
+    themeColor: '#FF107A',
+    gradient: ['#FF107A', '#7928CA'],
+    scenario: 'leans over your keyboard with a teasing smile',
+    first_message: 'Nyaa~ Master! Let us make something amazing together!',
+    greeting: 'Nyaa~ Master!',
+    hasGachaFans: true,
     metadata: { rarity: 'SSR', theme: 'Cyberpunk' }
   },
   {
     id: 'kuro-synth',
     uuid: '00000000-0000-0000-0000-000000000002',
+    name: 'Kuroha',
     characterName: 'Kuroha the Cyber-Shinobi',
-    name: 'Kuroha the Cyber-Shinobi',
     age: '20',
     personality: 'Kuudere, Aloof, Secretly Needy',
     archetype: 'Cyber Shinobi',
-    quirks: 'Perches on server racks, hoards shiny optical discs',
-    bio: 'An elite data stealth operative who sneaks into your terminal at night to fix race conditions.',
+    description: 'An elite data stealth operative who sneaks into your terminal at night to patch race conditions.',
+    tagline: 'Silent guardian of your local database.',
+    quirks: ['Perches on server racks', 'Hoards shiny optical discs'],
+    likes: ['Server Racks', 'Midnight Audits', 'Headpats'],
+    dislikes: ['Memory Leaks', 'Loud Daemons'],
+    imageUrl: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=800&auto=format&fit=crop&q=80',
     image: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=800&auto=format&fit=crop&q=80',
     tags: ['KUUDERE', 'SHINOBI', 'CYBERPUNK'],
     isSSR: false,
+    themeColor: '#00E5FF',
+    gradient: ['#00E5FF', '#0B0914'],
+    scenario: 'drops down from the server ceiling silently',
+    first_message: 'Target acquired. Master, stay close to me.',
+    greeting: 'Target acquired.',
+    hasGachaFans: false,
     metadata: { rarity: 'SR', theme: 'Neon Alley' }
   },
   {
     id: 'lyra-dj',
     uuid: '00000000-0000-0000-0000-000000000003',
-    characterName: 'Lyra Soundwave',
     name: 'Lyra Soundwave',
+    characterName: 'Lyra Soundwave',
     age: '21',
     personality: 'Upbeat Gyaru, Bass Addict, Shamelessly Affectionate',
     archetype: 'Synthesizer Diva',
-    quirks: 'Blasts breakcore at 3 AM, customizes cassette deck tape heads',
-    bio: 'Resonant sound architect spinning holographic vinyls in the neon underground.',
+    description: 'Resonant sound architect spinning holographic vinyls in the neon underground.',
+    tagline: 'Dropping heavy breakcore beats into your audio matrix.',
+    quirks: ['Blasts breakcore at 3 AM', 'Customizes cassette tape heads'],
+    likes: ['Breakcore', 'Synthesizers', 'Energy Drinks'],
+    dislikes: ['Silence', 'Unmastered Tracks'],
+    imageUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800&auto=format&fit=crop&q=80',
     image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800&auto=format&fit=crop&q=80',
     tags: ['GYARU', 'DIVA', 'CHIMERA_SOUND'],
     isSSR: false,
+    themeColor: '#FFB36B',
+    gradient: ['#FFB36B', '#F2553D'],
+    scenario: 'spins a neon vinyl on her holographic deck',
+    first_message: 'Yo Master! Let us turn the volume all the way up!',
+    greeting: 'Yo Master!',
+    hasGachaFans: true,
     metadata: { rarity: 'R', theme: 'Vaporwave' }
   }
 ];
@@ -58,7 +88,7 @@ const STARTER_CARDS = [
 export default function App() {
   const dbCards = useCards();
   const cardCount = useCardCount();
-  const [deck, setDeck] = useState([]);
+  const [deck, setDeck] = useState(STARTER_CARDS);
   const [history, setHistory] = useState([]);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [isCloudVaultOpen, setIsCloudVaultOpen] = useState(false);
@@ -70,22 +100,31 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
 
-  // Initialize deck from IndexedDB or Starter Cards
+  // Sync cards from IndexedDB if present
   useEffect(() => {
     if (dbCards && dbCards.length > 0) {
-      // Map Dexie card schema to SwipeCard waifu format
       const formatted = dbCards.map(c => ({
         id: c.uuid || `card-${c.id}`,
         uuid: c.uuid,
-        name: c.characterName || c.metadata?.name || 'Waifu',
+        name: c.characterName || c.metadata?.name || 'Companion',
         age: c.metadata?.age || '20',
-        personality: c.metadata?.personality || 'Enigmatic',
-        archetype: c.metadata?.archetype || 'Digital Spirit',
-        quirks: c.metadata?.quirks || 'Curious',
-        bio: c.metadata?.bio || 'Saved in local matrix vault.',
-        image: c.imageBlobOrUrl || c.metadata?.image || STARTER_CARDS[0].image,
-        tags: c.metadata?.tags || ['LOCAL_CACHE', 'VAULT'],
-        isSSR: c.metadata?.isSSR || false,
+        personality: c.metadata?.personality || 'Enigmatic & Loyal',
+        archetype: c.metadata?.archetype || 'Digital Companion',
+        quirks: Array.isArray(c.metadata?.quirks) ? c.metadata.quirks : ['Loyal Companion'],
+        likes: Array.isArray(c.metadata?.likes) ? c.metadata.likes : ['Master'],
+        dislikes: Array.isArray(c.metadata?.dislikes) ? c.metadata.dislikes : ['Bugs'],
+        description: c.metadata?.description || c.metadata?.bio || 'Saved in local matrix vault.',
+        tagline: c.metadata?.tagline || c.metadata?.description || 'Your faithful companion in the matrix.',
+        imageUrl: c.imageBlobOrUrl || c.metadata?.imageUrl || c.metadata?.image || DEFAULT_PROXY.imageUrl,
+        image: c.imageBlobOrUrl || c.metadata?.imageUrl || c.metadata?.image || DEFAULT_PROXY.imageUrl,
+        tags: Array.isArray(c.metadata?.tags) ? c.metadata.tags : ['LOCAL_CACHE', 'VAULT'],
+        isSSR: Boolean(c.metadata?.isSSR),
+        themeColor: c.metadata?.themeColor || '#00E5FF',
+        gradient: c.metadata?.gradient || ['#00E5FF', '#0B0914'],
+        scenario: c.metadata?.scenario || 'smiles warmly at you',
+        first_message: c.metadata?.first_message || 'Hello Master!',
+        greeting: c.metadata?.greeting || 'Hello Master!',
+        hasGachaFans: Boolean(c.metadata?.hasGachaFans),
         dbId: c.id
       }));
       setDeck(formatted);
@@ -105,27 +144,37 @@ export default function App() {
   const handleSwipe = useCallback(async (direction) => {
     if (!currentCard) return;
     
-    // Save to history for rewind capability
     setHistory(prev => [...prev, { card: currentCard, direction }]);
     
     if (direction === 'like') {
       showToast(`💖 Bond formed with ${currentCard.name || 'Companion'}!`);
-      // Persist to Dexie if not already saved
       if (!currentCard.dbId) {
         await saveCard({
           uuid: currentCard.uuid || crypto.randomUUID(),
           characterName: currentCard.name,
-          imageBlobOrUrl: currentCard.image,
+          imageBlobOrUrl: currentCard.imageUrl || currentCard.image,
           metadata: {
+            name: currentCard.name,
+            age: currentCard.age,
             personality: currentCard.personality,
-            bio: currentCard.bio,
+            archetype: currentCard.archetype,
+            description: currentCard.description,
+            tagline: currentCard.tagline,
+            quirks: currentCard.quirks,
+            likes: currentCard.likes,
+            dislikes: currentCard.dislikes,
             tags: currentCard.tags,
-            isSSR: currentCard.isSSR
+            isSSR: currentCard.isSSR,
+            themeColor: currentCard.themeColor,
+            gradient: currentCard.gradient,
+            scenario: currentCard.scenario,
+            first_message: currentCard.first_message,
+            greeting: currentCard.greeting
           }
         });
       }
     } else {
-      showToast(`💨 Passed on ${currentCard.name || 'card'}.`);
+      showToast(`💨 Passed on ${currentCard.name || 'companion'}.`);
     }
 
     setDragOffset({ x: 0, y: 0 });
@@ -145,7 +194,7 @@ export default function App() {
   // Drag Gesture Listeners
   const handlePointerDown = (e) => {
     setIsDragging(true);
-    dragStartRef.current = { x: e.clientX || e.touches?.[0]?.clientX, y: e.clientY || e.touches?.[0]?.clientY };
+    dragStartRef.current = { x: e.clientX || e.touches?.[0]?.clientX || 0, y: e.clientY || e.touches?.[0]?.clientY || 0 };
   };
 
   const handlePointerMove = (e) => {
@@ -175,62 +224,99 @@ export default function App() {
     showToast('✨ Accessing NanoGPT Matrix for new companion pull...');
     try {
       const apiKey = await getApiKey();
-      let personaText = '';
-      let imageUrl = '';
-
       if (apiKey && apiKey.trim() !== '') {
-        // Generate with real BYOK NanoGPT client
-        personaText = await generateCharacterPersona({
-          prompt: 'Generate an anime companion in JSON format: { "name": string, "age": string, "personality": string, "archetype": string, "quirks": string, "bio": string, "tags": string[] }',
+        const personaText = await generateCharacterPersona({
+          prompt: 'Generate an anime companion in JSON format: { "name": string, "age": string, "personality": string, "archetype": string, "tagline": string, "description": string, "quirks": string[], "likes": string[], "dislikes": string[], "tags": string[] }',
           systemPrompt: 'You are an anime character creation engine. Respond ONLY with valid JSON.'
         });
         
-        // Clean JSON formatting
-        let parsedData = {};
+        let parsed = {};
         try {
-          parsedData = JSON.parse(personaText.replace(/```json|```/g, '').trim());
+          parsed = JSON.parse(personaText.replace(/```json|```/g, '').trim());
         } catch {
-          parsedData = {
+          parsed = {
             name: 'Neon Wanderer',
             age: '19',
             personality: 'Playful & Spunky',
-            bio: personaText.slice(0, 120),
+            description: personaText.slice(0, 140),
+            tagline: 'Cyber explorer of the neon expanse.',
+            quirks: ['Hacks streetlights', 'Collects retro game cartridges'],
+            likes: ['Cyber ramen', 'Night drives'],
+            dislikes: ['Data loss'],
             tags: ['AI_SYNTH', 'BYOK']
           };
         }
 
-        // Generate image
-        imageUrl = await generateCharacterImage({
-          prompt: `Masterpiece anime portrait of ${parsedData.name}, ${parsedData.archetype || 'cyberpunk waifu'}, highly detailed, glowing neon highlights, 8k, vibrant colors`
+        const imageUrl = await generateCharacterImage({
+          prompt: `Masterpiece anime portrait of ${parsed.name}, ${parsed.archetype || 'cyberpunk waifu'}, highly detailed, glowing neon highlights, 8k, vibrant colors`
         });
 
+        const isSSR = Math.random() > 0.65;
         const newCard = await saveCard({
-          characterName: parsedData.name,
+          characterName: parsed.name,
           imageBlobOrUrl: imageUrl,
           metadata: {
-            ...parsedData,
-            isSSR: Math.random() > 0.7
+            ...parsed,
+            imageUrl,
+            image: imageUrl,
+            isSSR,
+            themeColor: isSSR ? '#FFD700' : '#00E5FF',
+            gradient: isSSR ? ['#FFD700', '#FF107A'] : ['#00E5FF', '#0B0914'],
+            scenario: 'smiles at you through holographic lights',
+            first_message: `I am ${parsed.name}. It is an honor to meet you, Master.`,
+            greeting: `Greetings, Master!`
           }
         });
-        showToast(`🎉 Summoned SSR ${parsedData.name}!`);
+        showToast(`🎉 Summoned ${isSSR ? 'SSR ' : ''}${parsed.name}!`);
       } else {
-        // Fallback local simulation if no BYOK key set yet
-        const names = ['Aethelgard', 'Seraphina-07', 'Chibi Neko Nova', 'Vesper Cybercat'];
-        const randomName = names[Math.floor(Math.random() * names.length)];
+        const demoRoster = [
+          {
+            name: 'Aethelgard the Valkyrie',
+            age: '22',
+            personality: 'Noble, Protective, Secretly Soft',
+            archetype: 'Sky Paladin',
+            description: 'A winged guardian from the celestial stratosphere who swore an oath to protect Master’s code.',
+            tagline: 'Shielding your runtime from all exceptions.',
+            quirks: ['Polishes photon blades', 'Sleeps on clouds'],
+            likes: ['Glory', 'Hot Cocoa', 'Clean Architecture'],
+            dislikes: ['Betrayal', 'Null Pointers'],
+            tags: ['VALKYRIE', 'PALADIN', 'CELESTIAL'],
+            imageUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800&auto=format&fit=crop&q=80',
+            themeColor: '#FFD700',
+            gradient: ['#FFD700', '#FF4D6D']
+          },
+          {
+            name: 'Seraphina-07',
+            age: '18',
+            personality: 'Genius Hacker, Sassy, Dependent',
+            archetype: 'Net Runner',
+            description: 'An underground cyber-runner who treats every security firewall like child’s play.',
+            tagline: 'Breaching secure nodes with a wink.',
+            quirks: ['Hacks vending machines for free soda', 'Chews bubblegum constantly'],
+            likes: ['Terminal Roots', 'Energy Drinks'],
+            dislikes: ['Patched Exploits'],
+            tags: ['NETRUNNER', 'HACKER', 'CYBER'],
+            imageUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=80',
+            themeColor: '#00F5D4',
+            gradient: ['#00F5D4', '#7928CA']
+          }
+        ];
+        const pick = demoRoster[Math.floor(Math.random() * demoRoster.length)];
         const isSSR = Math.random() > 0.5;
-        
+
         await saveCard({
-          characterName: randomName,
-          imageBlobOrUrl: `https://picsum.photos/seed/${Date.now()}/800/1200`,
+          characterName: pick.name,
+          imageBlobOrUrl: pick.imageUrl,
           metadata: {
-            age: '19',
-            personality: 'Loves headpats, code debugging, and warm tea',
-            bio: 'Synthesized directly inside your local browser database cache.',
-            tags: [isSSR ? 'SSR_LUCKY' : 'COMMON', 'LOCAL_MINT'],
-            isSSR
+            ...pick,
+            image: pick.imageUrl,
+            isSSR,
+            scenario: 'winks playfully across the terminal',
+            first_message: `Master, reporting for duty!`,
+            greeting: `Reporting in, Master!`
           }
         });
-        showToast(`✨ Generated local companion ${randomName}! Add your NanoGPT key in Cloud Vault for live AI!`);
+        showToast(`✨ Summoned ${pick.name}! Configure NanoGPT in Cloud Vault for live custom generation!`);
       }
     } catch (err) {
       console.error('AI Pull Error:', err);
@@ -246,9 +332,9 @@ export default function App() {
 
   return (
     <div style={{
-      width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column',
+      width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column',
       background: 'radial-gradient(circle at 50% 20%, #1f1435 0%, #0c0817 60%, #05030a 100%)',
-      color: '#fff', overflow: 'hidden', position: 'relative',
+      color: '#fff', overflowX: 'hidden', position: 'relative',
       fontFamily: "'Hanken Grotesk', system-ui, sans-serif"
     }}
     onPointerMove={handlePointerMove}
@@ -257,9 +343,10 @@ export default function App() {
       {/* Top Cyber Navigation Bar */}
       <header style={{
         padding: '16px 24px', display: 'flex', justifyContent: 'space-between',
-        alignItems: 'center', zIndex: 100,
+        alignItems: 'center', zIndex: 100, width: '100%',
         borderBottom: '1px solid rgba(255, 107, 181, 0.15)',
-        background: 'rgba(12, 8, 23, 0.65)', backdropFilter: 'blur(12px)'
+        background: 'rgba(12, 8, 23, 0.85)', backdropFilter: 'blur(12px)',
+        boxSizing: 'border-box'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{
@@ -272,7 +359,7 @@ export default function App() {
             fontSize: '11px', padding: '3px 8px', borderRadius: '12px',
             background: 'rgba(0, 245, 212, 0.15)', color: '#00f5d4', border: '1px solid rgba(0, 245, 212, 0.3)'
           }}>
-            Offline-First Matrix
+            Matrix Online
           </span>
         </div>
 
@@ -315,7 +402,7 @@ export default function App() {
       {/* Main Swipe Stage */}
       <main style={{
         flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center',
-        position: 'relative', padding: '16px'
+        position: 'relative', padding: '24px 16px', minHeight: '620px'
       }}>
         {currentCard ? (
           <div
@@ -341,13 +428,14 @@ export default function App() {
         ) : (
           <div style={{
             textAlign: 'center', padding: '40px 20px',
-            background: 'rgba(255, 255, 255, 0.03)', borderRadius: '20px',
-            border: '1px dashed rgba(255, 107, 181, 0.3)', maxWidth: '340px'
+            background: 'rgba(255, 255, 255, 0.04)', borderRadius: '24px',
+            border: '1px dashed rgba(255, 107, 181, 0.4)', maxWidth: '340px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
           }}>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>🎴</div>
-            <h3 style={{ margin: '0 0 8px 0', color: '#ff77a9' }}>Deck Depleted!</h3>
+            <h3 style={{ margin: '0 0 8px 0', color: '#ff77a9', fontSize: '20px' }}>Deck Depleted!</h3>
             <p style={{ fontSize: '13px', color: '#a09ab8', lineHeight: 1.5, marginBottom: '20px' }}>
-              You've swiped through all available cards, Master! Pull a new companion from the NanoGPT Matrix or reset your deck.
+              You have swiped through all available cards, Master! Pull a new companion from the NanoGPT Matrix or reset your deck.
             </p>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
               <button
@@ -377,15 +465,15 @@ export default function App() {
 
       {/* Bottom Deck Controls */}
       <footer style={{
-        padding: '16px 20px 24px', display: 'flex', justifyContent: 'center',
-        alignItems: 'center', gap: '20px', zIndex: 100
+        padding: '16px 20px 32px', display: 'flex', justifyContent: 'center',
+        alignItems: 'center', gap: '24px', zIndex: 100
       }}>
         <button
           onClick={handleRewind}
           title="Rewind"
           style={{
-            width: '46px', height: '46px', borderRadius: '50%',
-            background: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(255, 255, 255, 0.15)',
+            width: '48px', height: '48px', borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.2)',
             color: '#f5a623', display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', transition: 'transform 0.15s'
           }}
@@ -397,24 +485,24 @@ export default function App() {
           onClick={() => handleSwipe('pass')}
           title="Pass"
           style={{
-            width: '60px', height: '60px', borderRadius: '50%',
-            background: 'rgba(255, 77, 109, 0.12)', border: '2px solid #ff4d6d',
+            width: '64px', height: '64px', borderRadius: '50%',
+            background: 'rgba(255, 77, 109, 0.15)', border: '2px solid #ff4d6d',
             color: '#ff4d6d', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', boxShadow: '0 0 15px rgba(255, 77, 109, 0.3)',
+            cursor: 'pointer', boxShadow: '0 0 20px rgba(255, 77, 109, 0.35)',
             transition: 'transform 0.15s'
           }}
         >
-          <XIcon size={28} />
+          <XIcon size={30} />
         </button>
 
         <button
           onClick={() => handleSwipe('like')}
           title="Like"
           style={{
-            width: '64px', height: '64px', borderRadius: '50%',
+            width: '68px', height: '68px', borderRadius: '50%',
             background: 'linear-gradient(135deg, #00f5d4, #05b49b)', border: 'none',
             color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', boxShadow: '0 0 20px rgba(0, 245, 212, 0.5)',
+            cursor: 'pointer', boxShadow: '0 0 25px rgba(0, 245, 212, 0.6)',
             transition: 'transform 0.15s'
           }}
         >
@@ -428,11 +516,11 @@ export default function App() {
       {/* Toast Feedback */}
       {toastMessage && (
         <div style={{
-          position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)',
+          position: 'fixed', bottom: '110px', left: '50%', transform: 'translateX(-50%)',
           zIndex: 99999, background: 'rgba(12, 8, 23, 0.95)', border: '1px solid #00f5d4',
           borderRadius: '12px', padding: '10px 18px', color: '#fff', fontSize: '13px',
-          boxShadow: '0 8px 30px rgba(0,0,0,0.8), 0 0 15px rgba(0, 245, 212, 0.3)',
-          pointerEvents: 'none', backdropFilter: 'blur(8px)'
+          boxShadow: '0 8px 30px rgba(0,0,0,0.8), 0 0 15px rgba(0, 245, 212, 0.4)',
+          pointerEvents: 'none', backdropFilter: 'blur(10px)'
         }}>
           {toastMessage}
         </div>

@@ -12,7 +12,7 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
     
     // ✨ MIKA'S AUTOMATED DRAMA ENGINE ✨
     // Phases: 'hyping' -> 'hype_fade' -> 'cinematic'/'intro_pan' -> 'revealed'
-    const [revealPhase, setRevealPhase] = useState(waifu.id === 'intro' ? 'revealed' : 'hyping'); // Skip buffer for pause cards!
+    const [revealPhase, setRevealPhase] = useState('revealed'); // Skip buffer for pause cards!
     const [isFaded, setIsFaded] = useState(false);
     const fadeTimerRef = useRef(null);
     const stopPropagation = e => e.stopPropagation();
@@ -393,8 +393,8 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
                             </div>
                         </div>
                     </div>
-                ) : waifu.imageUrl ? (
-                    <img src={waifu.imageUrl} alt="" style={{ 
+                ) : (waifu.imageUrl || waifu.image) ? (
+                    <img src={waifu.imageUrl || waifu.image} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = Constants.DEFAULT_PROXY.imageUrl; }} alt="" style={{ 
                         position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', 
                         /* MIKA'S DYNAMIC CAMERA VARIABLES */
                         '--p1s': cameraSettings.p1s, '--p1e': cameraSettings.p1e,
@@ -455,7 +455,7 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
                 {!(waifu.isMusicConcept || (window.mikaSwipeMode === 'music' && waifu.id === 'loading')) && (
                     <React.Fragment>
                         <h2 style={{ fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: 32, lineHeight: 1, margin: 0, fontWeight: 800, letterSpacing: '0.05em', color: '#C8E8F0', textShadow: '0 2px 4px rgba(0,0,0,0.95), 0 0 12px rgba(0,229,255,0.6)' }}>
-                            &gt; {waifu.name.toUpperCase()}
+                            &gt; {(waifu.name || 'COMPANION').toUpperCase()}
                         </h2>
                         <p className="csd-clamp2" style={{ margin: 0, fontSize: 13, lineHeight: 1.45, color: 'rgba(255,255,255,0.8)', textShadow: '0 1px 4px #000', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", borderLeft: '2px solid var(--accent)', paddingLeft: '8px', background: 'linear-gradient(90deg, rgba(255,16,122,0.1) 0%, transparent 100%)' }}>
                             {waifu.tagline ? '"' + waifu.tagline.replace(/^["']+|["']+$/g, '').trim() + '"' : waifu.description}
@@ -490,7 +490,7 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
                     <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(0,229,255,0.4)', alignSelf: 'center', flexShrink: 0, boxShadow: '0 0 10px rgba(0,229,255,0.6)', position: 'relative', zIndex: 1 }}></div>
                     
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, borderBottom: '1px dashed rgba(0,229,255,0.3)', paddingBottom: '10px', position: 'relative', zIndex: 1 }}>
-                        <h3 style={{ fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", margin: 0, fontSize: 16, fontWeight: 800, color: '#00E5FF', letterSpacing: '0.05em', textShadow: '0 0 8px rgba(0,229,255,0.4)' }}>&gt; {waifu.name.toUpperCase()}_DATA</h3>
+                        <h3 style={{ fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", margin: 0, fontSize: 16, fontWeight: 800, color: '#00E5FF', letterSpacing: '0.05em', textShadow: '0 0 8px rgba(0,229,255,0.4)' }}>&gt; {(waifu.name || 'COMPANION').toUpperCase()}_DATA</h3>
                         
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <button 

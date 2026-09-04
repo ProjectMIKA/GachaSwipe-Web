@@ -7,13 +7,18 @@ export const TagPill = ({ label, onDark }) => (
 );
 
 export const DetailsList = ({ items, label, tone, isBlock }) => {
-    if (!items || items.length === 0) return null;
+    if (!items || (Array.isArray(items) && items.length === 0)) return null;
+    const safeItems = Array.isArray(items) 
+        ? items 
+        : (typeof items === 'string' ? items.split(/,\s*/) : [String(items)]);
+    if (safeItems.length === 0) return null;
+    
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start', marginTop: '16px' }}>
             <span style={{ fontSize: 10, fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: tone === 'like' ? '#00E5FF' : 'rgba(0, 229, 255, 0.5)' }}>&gt; {label}</span>
             {isBlock ? (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {items.map((item, i) => (
+                    {safeItems.map((item, i) => (
                         <span key={i} style={{ fontSize: 11, fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", background: 'rgba(0, 229, 255, 0.1)', border: '1px solid rgba(0, 229, 255, 0.3)', color: '#C8E8F0', padding: '4px 8px', borderRadius: 4, letterSpacing: '0.05em' }}>
                             {item}
                         </span>
@@ -21,7 +26,7 @@ export const DetailsList = ({ items, label, tone, isBlock }) => {
                 </div>
             ) : (
                 <ul style={{ margin: 0, paddingLeft: 16, color: '#EBE3D6', fontSize: 12, lineHeight: 1.6, fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace" }}>
-                    {items.map((item, i) => <li key={i}>{item}</li>)}
+                    {safeItems.map((item, i) => <li key={i}>{item}</li>)}
                 </ul>
             )}
         </div>
