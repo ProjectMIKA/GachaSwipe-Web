@@ -31,10 +31,20 @@ export const ThreePanelLayout = ({ children }) => {
 
     const centerStageRef = useRef(null);
 
+    const handleCloseMobileDrawer = () => {
+        setMobileDrawer('none');
+        window.dispatchEvent(new CustomEvent('gacha:close-hud'));
+    };
+
     // Global layout communication bus
     useEffect(() => {
         window.__GACHA_HUD__ = {
             setRightPanelView: (view) => setRightPanelView(view),
+            openHUD: (view = 'profile') => {
+                setRightPanelView(view);
+                if (window.innerWidth <= 1024) setMobileDrawer('right');
+            },
+            closeHUD: () => handleCloseMobileDrawer(),
             triggerMinigame: (waifu) => {
                 if (waifu) setActiveWaifu(waifu);
                 setIsMinigameActive(true);
@@ -72,10 +82,26 @@ export const ThreePanelLayout = ({ children }) => {
 
     // Intercept header & action clicks inside Center Panel without mutating App internals
     const handleCenterClickCapture = (e) => {
-        // Native App.jsx handles all interactions naturally
-        if (window.innerWidth <= 1024) {
-            const settingsBtn = e.target.closest('.header-icon-btn.settings');
-            if (settingsBtn) setMobileDrawer('right');
+        const settingsBtn = e.target.closest('.header-icon-btn.settings');
+        if (settingsBtn) {
+            e.stopPropagation();
+            e.preventDefault();
+            setRightPanelView('settings');
+            if (window.innerWidth <= 1024) {
+                setMobileDrawer('right');
+            }
+            return;
+        }
+
+        const historyBtn = e.target.closest('.header-icon-btn.history');
+        if (historyBtn) {
+            e.stopPropagation();
+            e.preventDefault();
+            setRightPanelView('profile');
+            if (window.innerWidth <= 1024) {
+                setMobileDrawer('right');
+            }
+            return;
         }
     };
 
@@ -169,7 +195,7 @@ export const ThreePanelLayout = ({ children }) => {
                         onChangeView={setRightPanelView}
                         activeWaifu={activeWaifu}
                         onTriggerMinigame={() => setIsMinigameActive(true)}
-                        onCloseMobileDrawer={() => setMobileDrawer('none')}
+                        onCloseMobileDrawer={handleCloseMobileDrawer}
                     />
                 </aside>
 
@@ -179,7 +205,7 @@ export const ThreePanelLayout = ({ children }) => {
                 {mobileDrawer !== 'none' && (
                     <div
                         className="mobile-drawer-backdrop"
-                        onClick={() => setMobileDrawer('none')}
+                        onClick={handleCloseMobileDrawer}
                     />
                 )}
 
@@ -197,7 +223,13 @@ export const ThreePanelLayout = ({ children }) => {
                 </div>
                 <div
                     className="mobile-edge-handle right"
-                    onClick={() => setMobileDrawer(prev => prev === 'right' ? 'none' : 'right')}
+                    onClick={() => {
+                        if (mobileDrawer === 'right') {
+                            handleCloseMobileDrawer();
+                        } else {
+                            setMobileDrawer('right');
+                        }
+                    }}
                     title="Toggle HUD"
                 >
                     ⚙️ HUD

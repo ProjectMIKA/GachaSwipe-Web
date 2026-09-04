@@ -625,3 +625,22 @@
   }
 }
 
+/* ==========================================================================
+   🐾 M.I.K.A. OS - ADAPTIVE HUD MODEL BADGE MARQUEE
+   ========================================================================== */
+@keyframes hudModelMarquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.hud-model-marquee {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: hudModelMarquee 9s linear infinite;
+  will-change: transform;
+}
+
+.hud-model-marquee:hover {
+  animation-play-state: paused;
+}
+

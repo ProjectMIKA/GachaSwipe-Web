@@ -812,38 +812,69 @@ export const AdaptiveHUD = ({
                 justifyContent: 'space-between',
                 flexShrink: 0
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flexShrink: 1 }}>
                     <div style={{
                         width: '8px',
                         height: '8px',
                         borderRadius: '50%',
                         background: '#00ff9d',
                         boxShadow: '0 0 10px #00ff9d',
-                        animation: 'pulse 1.5s infinite'
+                        animation: 'pulse 1.5s infinite',
+                        flexShrink: 0
                     }} />
                     <span style={{
                         color: '#00ff9d',
                         fontSize: '12px',
                         fontWeight: 900,
                         letterSpacing: '0.14em',
-                        textShadow: '0 0 8px rgba(0, 255, 157, 0.6)'
+                        textShadow: '0 0 8px rgba(0, 255, 157, 0.6)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
                     }}>
                         ADAPTIVE_HUD // {activeView.toUpperCase()}
                     </span>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{
-                        fontSize: '9px',
-                        color: '#00e5ff',
-                        background: 'rgba(0, 229, 255, 0.1)',
-                        padding: '3px 8px',
-                        borderRadius: '3px',
-                        border: '1px solid rgba(0, 229, 255, 0.3)',
-                        letterSpacing: '0.08em'
-                    }}>
-                        {activeModel.split('/').pop()}
-                    </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    <div
+                        style={{
+                            width: '80px',
+                            minWidth: '80px',
+                            maxWidth: '80px',
+                            height: '20px',
+                            background: 'rgba(0, 229, 255, 0.1)',
+                            border: '1px solid rgba(0, 229, 255, 0.3)',
+                            borderRadius: '3px',
+                            overflow: 'hidden',
+                            position: 'relative',
+                            display: 'flex',
+                            alignItems: 'center',
+                            flexShrink: 0,
+                            boxSizing: 'border-box',
+                            maskImage: 'linear-gradient(90deg, transparent 0%, black 6px, black calc(100% - 6px), transparent 100%)',
+                            WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, black 6px, black calc(100% - 6px), transparent 100%)',
+                            cursor: 'pointer'
+                        }}
+                        title={`Active Neural Engine: ${activeModel} (Click to open API Matrix)`}
+                        onClick={() => onChangeView && onChangeView('api')}
+                    >
+                        <div
+                            className="hud-model-marquee"
+                            style={{
+                                display: 'inline-flex',
+                                whiteSpace: 'nowrap',
+                                fontSize: '9px',
+                                color: '#00e5ff',
+                                letterSpacing: '0.08em',
+                                fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
+                                fontWeight: 700
+                            }}
+                        >
+                            <span style={{ paddingRight: '22px' }}>{activeModel ? activeModel.split('/').pop() : 'UNKNOWN'}</span>
+                            <span style={{ paddingRight: '22px' }}>{activeModel ? activeModel.split('/').pop() : 'UNKNOWN'}</span>
+                        </div>
+                    </div>
                     {onCloseMobileDrawer && (
                         <button
                             onClick={onCloseMobileDrawer}
@@ -857,6 +888,7 @@ export const AdaptiveHUD = ({
                                 fontSize: '11px',
                                 fontWeight: 'bold'
                             }}
+                            title="Close HUD"
                         >
                             ✕
                         </button>

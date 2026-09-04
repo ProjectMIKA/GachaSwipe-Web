@@ -1407,15 +1407,20 @@ Output strictly inside these XML tags:
                 setSelectedEngine(e.detail.modelId);
             }
         };
+        const handleCloseHUD = () => {
+            setAppState(prev => (prev === 'settings' || prev === 'session') ? 'swipe' : prev);
+        };
         window.addEventListener('resize', handleDesktopSync);
         window.addEventListener('gacha:toggle-chat', handleToggleChat);
         window.addEventListener('gacha:image-model-changed', handleImageModelChanged);
         window.addEventListener('gacha:model-changed', handleAiModelChanged);
+        window.addEventListener('gacha:close-hud', handleCloseHUD);
         return () => {
             window.removeEventListener('resize', handleDesktopSync);
             window.removeEventListener('gacha:toggle-chat', handleToggleChat);
             window.removeEventListener('gacha:image-model-changed', handleImageModelChanged);
             window.removeEventListener('gacha:model-changed', handleAiModelChanged);
+            window.removeEventListener('gacha:close-hud', handleCloseHUD);
         };
     }, []);
 
@@ -4626,9 +4631,9 @@ ${universeDirective}${canonDirective}${popCultureDirective}${customTraitModule}$
             const extractedName = extract('name');
             const extractedDesc = extract('description');
 
-            // MIKA'S FIX: Check for the flatline BEFORE we assign any fallback strings!
+            // Check for generation flatline before assigning fallback strings
             if (!extractedName && !extractedDesc) {
-                throw new Error("CatfishTrigger");
+                throw new Error("Neural matrix flatlined: could not extract character profile from response.");
             }
 
             // ✨ MIKA'S CATEGORY LIMITER ✨
@@ -4807,12 +4812,6 @@ ${universeDirective}${canonDirective}${popCultureDirective}${customTraitModule}$
                 return;
             }
 
-            // MIKA'S CHEEKY INTERCEPT: Turn a flatline into a Catfish!
-            if (error.message === "CatfishTrigger") {
-                setIsGenerating(false); // Reset the lock
-                spawnCatfishMatch(); // Hand it off to the alt-account generator!
-                return;
-            }
 
             console.error("Failed to generate waifu:", error);
             setCurrentGeneration({ phase: 'error', error: error.message || 'Layla generation failed.', responseText: '', imageStatus: '', imageStep: 0, imageTotalSteps: 1 });
@@ -24246,7 +24245,7 @@ Output STRICTLY in XML format:
             {appState === 'session' && renderSession()}
             {appState === 'settings' && renderSettings()}
             {appState === 'theme-forge' && renderThemeForge()}
-            {(appState === 'swipe' || appState === 'settings' || appState === 'session' || appState === 'theme-forge' || appState === 'daw' || appState === 'tape-library') && renderSwipe()}
+            {appState === 'swipe' && renderSwipe()}
             {appState === 'daw' && renderDawStudio()}
             {appState === 'tape-library' && renderTapeLibrary()}
             {isGachaFansHubActive && renderGachaFansHub()}
