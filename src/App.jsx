@@ -328,7 +328,7 @@ function App() {
         id: 'intro_music',
         name: 'CYBERDECK_DAW',
         isMusicConcept: true,
-        vibeDescription: 'Welcome to the Ace-Step Audio Matrix! Select your visual themes below, then swipe to brainstorm fresh track concepts!',
+        vibeDescription: 'Welcome to the Ace-Step Audio Matrix! Select your visual themes above, then swipe to brainstorm fresh track concepts!',
         themeColor: '#B533FF',
         rarity: 'SYSTEM_READY',
         bpm: '--- BPM',
@@ -5024,7 +5024,7 @@ ${universeDirective}${canonDirective}${popCultureDirective}${customTraitModule}$
                     id: 'intro_music',
                     name: 'CYBERDECK_DAW',
                     isMusicConcept: true,
-                    vibeDescription: 'Welcome to the Ace-Step Audio Matrix! Select your visual themes below, then swipe to brainstorm fresh track concepts!',
+                    vibeDescription: 'Welcome to the Ace-Step Audio Matrix! Select your visual themes above, then swipe to brainstorm fresh track concepts!',
                     themeColor: '#B533FF',
                     rarity: 'SYSTEM_READY',
                     bpm: '--- BPM',
@@ -5344,11 +5344,11 @@ ${universeDirective}${canonDirective}${popCultureDirective}${customTraitModule}$
         setShowMatchProfile(false);
 
         const friendChat = inbox[friendId];
-        if (!friendChat || !layla) return;
+        if (!friendChat || !matchWaifu || !layla) return;
 
-        const friendName = friendChat.waifu.name;
-        const matchName = matchWaifu.name;
-        const matchDetails = `Tropes: ${matchWaifu.tags?.join(', ')}. Personality: ${matchWaifu.personality}. Quirks: ${matchWaifu.quirks?.join(', ')}.`;
+        const friendName = friendChat.waifu?.name || friendChat.name || 'Friend';
+        const matchName = matchWaifu.name || 'Unknown';
+        const matchDetails = `Tropes: ${matchWaifu.tags?.join(', ') || 'None'}. Personality: ${matchWaifu.personality || 'Unknown'}. Quirks: ${matchWaifu.quirks?.join(', ') || 'None'}.`;
 
         const activeUserName = useLaylaPersona ? (userPersona.name || 'Master') : (customUserProfile.name || 'Master');
         const userMsg = `*${activeUserName} shared a profile: [Link to ${matchName}]*`;
@@ -23905,7 +23905,7 @@ Output STRICTLY in XML format:
                                     &gt; TRANSMIT_PROFILE
                                 </div>
                                 <div style={{ color: 'rgba(255,255,255,0.5)', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: '10px', letterSpacing: '0.05em' }}>
-                                    Select recipient for {profileToShare?.name?.split(' ')[0]}'s data packet
+                                    Select recipient for {(profileToShare?.name || 'companion').split(' ')[0]}'s data packet
                                 </div>
                             </div>
                             <button onClick={() => setIsShareMenuOpen(false)} style={{ background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.3)', color: '#00E5FF', width: '28px', height: '28px', borderRadius: '6px', cursor: 'pointer', display: 'grid', placeItems: 'center', fontFamily: 'inherit', transition: 'all 0.2s' }} onMouseOver={e => { e.currentTarget.style.background = 'rgba(0,229,255,0.2)'; e.currentTarget.style.boxShadow = '0 0 10px rgba(0,229,255,0.3)'; }} onMouseOut={e => { e.currentTarget.style.background = 'rgba(0,229,255,0.1)'; e.currentTarget.style.boxShadow = 'none'; }}>
@@ -23932,40 +23932,47 @@ Output STRICTLY in XML format:
                         {/* RECIPIENT LIST */}
                         <div style={{ padding: '12px 16px', maxHeight: '45vh', overflowY: 'auto' }}>
                             <div style={{ color: '#00E5FF', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.1em', marginBottom: '10px', opacity: 0.7, textShadow: '0 0 5px rgba(0,229,255,0.3)' }}>
-                                &gt; CONNECTED_FRIENDS [{Object.values(inbox).filter(c => c.status === 'friend').length}]
+                                &gt; CONNECTED_FRIENDS [{Object.values(inbox).filter(c => c && c.status === 'friend' && !c.isGroup && c.waifu).length}]
                             </div>
 
-                            {Object.values(inbox).filter(c => c.status === 'friend').length === 0 ? (
+                            {Object.values(inbox).filter(c => c && c.status === 'friend' && !c.isGroup && c.waifu).length === 0 ? (
                                 <div style={{ color: '#666', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontStyle: 'italic', textAlign: 'center', padding: '32px 20px', fontSize: '12px' }}>No active neural links.\nSwipe right on someone first! 💕</div>
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    {Object.values(inbox).filter(c => c.status === 'friend').map((chat, idx) => (
-                                        <div
-                                            key={chat.waifu.id}
-                                            onClick={() => handleShareProfile(chat.waifu.id, profileToShare)}
-                                            style={{
-                                                display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px',
-                                                background: 'rgba(0, 229, 255, 0.03)', borderRadius: '10px', cursor: 'pointer',
-                                                border: '1px solid rgba(0,229,255,0.12)',
-                                                transition: 'all 0.18s ease',
-                                                animation: `csd-rise 0.3s ease forwards`, opacity: 0, animationDelay: `${Math.min(idx * 0.05, 0.4)}s`
-                                            }}
-                                            onMouseOver={e => { e.currentTarget.style.background = 'rgba(0,229,255,0.12)'; e.currentTarget.style.borderColor = 'rgba(0,229,255,0.5)'; e.currentTarget.style.boxShadow = '0 0 12px rgba(0,229,255,0.2), inset 0 0 8px rgba(0,229,255,0.06)'; }}
-                                            onMouseOut={e => { e.currentTarget.style.background = 'rgba(0, 229, 255, 0.03)'; e.currentTarget.style.borderColor = 'rgba(0,229,255,0.12)'; e.currentTarget.style.boxShadow = 'none'; }}
-                                        >
-                                            <img src={chat.waifu.imageUrl || DEFAULT_PROXY.imageUrl} style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(0,229,255,0.4)' }} />
-                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div style={{ fontWeight: 'bold', color: '#fff', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{chat.waifu.name}</div>
-                                                <div style={{ color: '#666', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: '9px', letterSpacing: '0.03em', marginTop: '1px' }}>
-                                                    {chat.messages.length > 0 ? `${chat.messages.length} msgs` : 'No messages yet'}
+                                    {Object.values(inbox).filter(c => c && c.status === 'friend' && !c.isGroup && c.waifu).map((chat, idx) => {
+                                        const targetWaifu = chat.waifu || {};
+                                        const targetId = targetWaifu.id || chat.id;
+                                        const targetName = targetWaifu.name || chat.name || 'Friend';
+                                        const targetImg = targetWaifu.imageUrl || DEFAULT_PROXY.imageUrl;
+                                        const msgCount = Array.isArray(chat.messages) ? chat.messages.length : 0;
+                                        return (
+                                            <div
+                                                key={targetId}
+                                                onClick={() => handleShareProfile(targetId, profileToShare)}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px',
+                                                    background: 'rgba(0, 229, 255, 0.03)', borderRadius: '10px', cursor: 'pointer',
+                                                    border: '1px solid rgba(0,229,255,0.12)',
+                                                    transition: 'all 0.18s ease',
+                                                    animation: `csd-rise 0.3s ease forwards`, opacity: 0, animationDelay: `${Math.min(idx * 0.05, 0.4)}s`
+                                                }}
+                                                onMouseOver={e => { e.currentTarget.style.background = 'rgba(0,229,255,0.12)'; e.currentTarget.style.borderColor = 'rgba(0,229,255,0.5)'; e.currentTarget.style.boxShadow = '0 0 12px rgba(0,229,255,0.2), inset 0 0 8px rgba(0,229,255,0.06)'; }}
+                                                onMouseOut={e => { e.currentTarget.style.background = 'rgba(0, 229, 255, 0.03)'; e.currentTarget.style.borderColor = 'rgba(0,229,255,0.12)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                            >
+                                                <img src={targetImg} style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(0,229,255,0.4)' }} />
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 'bold', color: '#fff', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{targetName}</div>
+                                                    <div style={{ color: '#666', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: '9px', letterSpacing: '0.03em', marginTop: '1px' }}>
+                                                        {msgCount > 0 ? `${msgCount} msgs` : 'No messages yet'}
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                                                    <span style={{ color: '#00E5FF', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.05em', opacity: 0.6 }}>SEND</span>
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#00E5FF' }}><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
                                                 </div>
                                             </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                                                <span style={{ color: '#00E5FF', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.05em', opacity: 0.6 }}>SEND</span>
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#00E5FF' }}><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
