@@ -112,8 +112,8 @@ export default function App() {
   });
 
   // User Stats & Currency
-  const [swipes, setSwipes] = useState(0);
-  const [sparkTokens, setSparkTokens] = useState(5);
+  const [swipes, setSwipes] = useState(159);
+  const [sparkTokens, setSparkTokens] = useState(142);
   const [preferences, setPreferences] = useState({ cyberpunk: 5, catgirl: 3 });
   const [ssrPityCount, setSsrPityCount] = useState(0);
   const [lastSwipedImage, setLastSwipedImage] = useState(null);
@@ -136,9 +136,12 @@ export default function App() {
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   const dragStart = useRef(null);
 
-  // Layout & Responsive States
+  // Layout & 3-Panel Visibility States
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [rightPanelTab, setRightPanelTab] = useState('chat'); // 'chat' | 'group' | 'gachafans' | 'settings'
+
   const [activeRoleplayCompanion, setActiveRoleplayCompanion] = useState(STARTER_CARDS[0]);
   const [activeGachaFansCompanion, setActiveGachaFansCompanion] = useState(STARTER_CARDS[0]);
 
@@ -175,7 +178,12 @@ export default function App() {
   // Responsive resize watcher
   useEffect(() => {
     const handleResize = () => {
-      setIsDesktop(window.innerWidth >= 1024);
+      const desktop = window.innerWidth >= 1024;
+      setIsDesktop(desktop);
+      if (desktop) {
+        setIsLeftPanelOpen(true);
+        setIsRightPanelOpen(true);
+      }
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -624,390 +632,657 @@ export default function App() {
   }, [queue.length, swipeMode, isGenerating, currentGeneration, generateNextWaifu]);
 
   return (
-    <div className="min-h-screen w-full bg-[#050308] text-white flex flex-col font-mono overflow-hidden select-none">
-      {/* 🚀 Top Cyber Navigation Bar */}
-      <header className="h-14 border-b border-[#00E5FF]/20 bg-[#0B0914]/80 backdrop-blur-md flex items-center justify-between px-4 z-40">
-        <div className="flex items-center gap-3">
-          <span className="text-[#FF107A] font-black text-lg tracking-widest flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#FF107A] animate-pulse"></span>
-            GACHASWIPE
-          </span>
-          <span className="text-[10px] px-2 py-0.5 rounded bg-[#00E5FF]/10 text-[#00E5FF] border border-[#00E5FF]/30">
-            WEB_EDITION // M.I.K.A.
-          </span>
-        </div>
+    <div
+      style={{
+        width: '100vw',
+        height: '100dvh',
+        display: 'flex',
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'stretch',
+        background: '#050308',
+        color: '#fff',
+        overflow: 'hidden',
+        position: 'relative',
+        boxSizing: 'border-box',
+        fontFamily: "'Hanken Grotesk', ui-monospace, sans-serif",
+        userSelect: 'none'
+      }}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+    >
+      {/* Cyberpunk CRT Scanlines & Vignette */}
+      <div className="swipe-scanlines" style={{ zIndex: 1, pointerEvents: 'none' }} />
+      <div className="swipe-vignette" style={{ zIndex: 1, pointerEvents: 'none' }} />
 
-        {/* Global Stats Header */}
-        <div className="flex items-center gap-4 text-xs">
-          <div className="hidden sm:flex items-center gap-2 bg-[#050308] px-3 py-1 rounded border border-[#00E5FF]/20">
-            <span className="text-gray-400">SYNC:</span>
-            <span style={{ color: syncColor }} className="font-bold">
-              {syncText} ({meterProgress}%)
-            </span>
-          </div>
+      {/* ==================== 1. LEFT PANEL: ROSTER & PROFILE HUB ==================== */}
+      {isDesktop && isLeftPanelOpen && (
+        <aside
+          style={{
+            width: '320px',
+            minWidth: '320px',
+            maxWidth: '320px',
+            height: '100dvh',
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            background: '#07050E',
+            borderRight: '1px solid rgba(0, 229, 255, 0.18)',
+            overflow: 'hidden',
+            zIndex: 20,
+            boxSizing: 'border-box'
+          }}
+        >
+          <RosterPanel
+            isEmbedded={true}
+            activeCard={currentCard}
+            history={sessionHistory}
+            swipes={swipes}
+            sparks={sparkTokens}
+            userName="Master"
+            onSelectCard={(card) => {
+              setActiveRoleplayCompanion(card);
+              setRightPanelTab('chat');
+              setIsRightPanelOpen(true);
+            }}
+            onOpenChat={(card) => {
+              setActiveRoleplayCompanion(card);
+              setRightPanelTab('chat');
+              setIsRightPanelOpen(true);
+            }}
+            onOpenGachaFans={(card) => {
+              setActiveGachaFansCompanion(card);
+              setRightPanelTab('gachafans');
+              setIsRightPanelOpen(true);
+            }}
+            onOpenSettings={() => {
+              setRightPanelTab('settings');
+              setIsRightPanelOpen(true);
+            }}
+            onOpenCloudVault={() => setIsCloudVaultOpen(true)}
+            onSendSpark={(card) => {
+              setSparkTokens((c) => Math.max(0, c - 5));
+              showToast('[SPARK SENT: ⚡ REMATCHED WITH ' + (card.characterName || card.name).toUpperCase() + '!]');
+            }}
+          />
+        </aside>
+      )}
 
-          <div
-            onClick={() => setIsCloudVaultOpen(true)}
-            className="flex items-center gap-1.5 bg-[#FFD700]/10 px-3 py-1 rounded border border-[#FFD700]/40 text-[#FFD700] cursor-pointer hover:bg-[#FFD700]/20 transition-all"
-            title="Spark Tokens & BYOK Vault"
-          >
-            <SparkIcon />
-            <span className="font-bold">{sparkTokens}</span>
-          </div>
-
-          <button
-            onClick={() => setIsSettingsOpen(true)}
-            className="p-1.5 rounded hover:bg-white/10 text-gray-300 transition-colors"
-            title="System Settings"
-          >
-            ⚙️
-          </button>
-        </div>
-      </header>
-
-      {/* 🌐 MAIN 3-PANEL RESPONSIVE WORKSPACE */}
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* ==================== LEFT PANEL: ROSTER & ARCHIVE ==================== */}
-        {isDesktop && (
-          <aside className="w-80 border-r border-[#00E5FF]/20 bg-[#07050E] flex flex-col z-30">
-            <RosterPanel
-              isEmbedded={true}
-              activeCard={currentCard}
-              history={sessionHistory}
-              swipes={swipes}
-              sparks={sparkTokens}
-              onSelectCard={(c) => {
-                setActiveRoleplayCompanion(c);
-                setRightPanelTab('chat');
+      {/* ==================== 2. CENTER PANEL: 3D SWIPE ARENA ==================== */}
+      <main
+        className="swipe-container"
+        style={{
+          width: isDesktop ? '440px' : '100%',
+          minWidth: isDesktop ? '380px' : 'auto',
+          maxWidth: isDesktop ? '460px' : '100%',
+          height: '100dvh',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          padding: '10px 14px 10px',
+          boxSizing: 'border-box',
+          background: '#050308',
+          borderLeft: isDesktop && isLeftPanelOpen ? '1px solid rgba(0, 229, 255, 0.15)' : 'none',
+          borderRight: isDesktop && isRightPanelOpen ? '1px solid rgba(0, 229, 255, 0.15)' : 'none',
+          boxShadow: '0 0 50px rgba(0, 229, 255, 0.1), inset 0 0 30px rgba(0,0,0,0.8)',
+          overflow: 'hidden',
+          flexShrink: 0,
+          zIndex: 15
+        }}
+      >
+        {/* Terminal Header Bar */}
+        <div
+          className="swipe-header"
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            paddingBottom: '6px',
+            zIndex: 10,
+            flexShrink: 0
+          }}
+        >
+          {/* Left: TARGET Pill + Soulbound */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+            <div
+              className="theme-pill"
+              onClick={() => {
+                matrixAudio.playClick();
+                setIsThemeOpen(true);
               }}
-              onOpenChat={(c) => {
-                setActiveRoleplayCompanion(c);
-                setRightPanelTab('chat');
-              }}
-              onOpenGachaFans={(c) => {
-                setActiveGachaFansCompanion(c);
-                setRightPanelTab('gachafans');
-              }}
-              onOpenSettings={() => setIsSettingsOpen(true)}
-              onOpenCloudVault={() => setIsCloudVaultOpen(true)}
-            />
-          </aside>
-        )}
-
-        {/* ==================== CENTER PANEL: 3D SWIPE STAGE ==================== */}
-        <main className="flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden bg-[#050308]">
-          {/* Scanline & Hologram Ambience */}
-          <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,rgba(0,229,255,0.05)_0%,transparent_70%)]"></div>
-
-          {/* Top Target & Mode Selector */}
-          <div className="w-full max-w-sm flex items-center justify-between gap-2 z-20 mb-2">
-            <button
-              onClick={() => setIsThemeOpen(true)}
-              className="flex items-center gap-1.5 text-xs bg-[#00E5FF]/10 text-[#00E5FF] px-3 py-1.5 rounded border border-[#00E5FF]/30 hover:bg-[#00E5FF]/20 transition-all font-bold tracking-wider"
+              title="Click to Switch Theme Matrix"
+              style={{ cursor: 'pointer', margin: 0 }}
             >
-              <span>&gt; TARGET:</span>
-              <span className="text-white">{selectedContext.toUpperCase()}</span>
-            </button>
+              <span style={{ fontWeight: 'bold', color: 'rgba(0,229,255,0.6)', marginRight: '4px', flexShrink: 0, fontSize: '11px' }}>
+                &gt; TARGET:
+              </span>
+              <div className="smart-scroll-box">
+                <span className="smart-scroll-content" style={{ color: '#00E5FF', fontWeight: 800, fontSize: '11px', textShadow: '0 0 6px rgba(0,229,255,0.4)' }}>
+                  {selectedContext.toUpperCase()}
+                </span>
+              </div>
+            </div>
 
             {/* Mode Switcher: Dating vs Music */}
-            <div className="flex items-center gap-1 bg-[#0B0914] p-0.5 rounded border border-white/10">
-              <button
-                onClick={() => setSwipeMode('dating')}
-                className={'px-2.5 py-1 text-xs rounded transition-all flex items-center gap-1 ' + (swipeMode === 'dating' ? 'bg-[#FF107A] text-white font-bold' : 'text-gray-400 hover:text-white')}
-              >
-                ❤️ DATING
-              </button>
-              <button
-                onClick={() => {
+            <button
+              onClick={() => {
+                matrixAudio.playClick();
+                if (swipeMode === 'dating') {
                   setSwipeMode('music');
                   if (beatQueue.length === 0) generateSongConcepts();
-                }}
-                className={'px-2.5 py-1 text-xs rounded transition-all flex items-center gap-1 ' + (swipeMode === 'music' ? 'bg-[#00E5FF] text-black font-bold' : 'text-gray-400 hover:text-white')}
-              >
-                <MusicIcon /> MUSIC
-              </button>
-            </div>
+                } else {
+                  setSwipeMode('dating');
+                }
+              }}
+              style={{
+                background: swipeMode === 'music' ? 'rgba(0,229,255,0.2)' : 'rgba(255,16,122,0.2)',
+                border: '1px solid ' + (swipeMode === 'music' ? '#00E5FF' : '#FF107A'),
+                borderRadius: '4px',
+                color: swipeMode === 'music' ? '#00E5FF' : '#FF107A',
+                padding: '4px 8px',
+                fontSize: '9.5px',
+                fontWeight: 900,
+                letterSpacing: '0.05em',
+                cursor: 'pointer',
+                boxShadow: '0 0 10px ' + (swipeMode === 'music' ? 'rgba(0,229,255,0.3)' : 'rgba(255,16,122,0.3)'),
+                flexShrink: 0
+              }}
+            >
+              {swipeMode === 'music' ? '🎵 MUSIC' : '❤️ DATING'}
+            </button>
           </div>
 
-          {/* Holographic Card Arena */}
-          <div
-            className="relative w-full max-w-sm flex-1 flex items-center justify-center my-auto min-h-[460px]"
-            style={{ perspective: '1000px' }}
-          >
-            {/* Active Deck Render with 3D Preservation */}
-            {activeDeck.length > 0 ? (
-              activeDeck
-                .slice(0, 3)
-                .map((card, index) => {
-                  const isTop = index === 0;
-                  const cardStyle = isTop
-                    ? {
-                        transform: 'translate(' + dragPos.x + 'px, ' + dragPos.y + 'px) rotate(' + rotation + 'deg) rotateY(' + rotateY + 'deg) rotateX(' + rotateX + 'deg)',
-                        transformStyle: 'preserve-3d',
-                        transition: isDragging ? 'none' : 'transform 0.35s cubic-bezier(.2,.8,.2,1)',
-                        zIndex: 10
-                      }
-                    : {
-                        transform: 'translateY(' + (index * 16) + 'px) scale(' + (1 - index * 0.045) + ')',
-                        transition: 'transform 0.35s cubic-bezier(.2,.8,.2,1)',
-                        zIndex: 10 - index,
-                        filter: 'saturate(0.92)'
-                      };
+          {/* Right: Roster Toggle, Chat Toggle, Sparks */}
+          <div className="header-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+            <button
+              className="header-icon-btn"
+              onClick={() => {
+                matrixAudio.playClick();
+                if (isDesktop) setIsLeftPanelOpen(!isLeftPanelOpen);
+                else setIsRosterOpen(true);
+              }}
+              title="Toggle Roster"
+              style={{ color: '#00E5FF', background: 'transparent', border: 'none', cursor: 'pointer' }}
+            >
+              <UserIcon size={18} />
+            </button>
 
-                  return (
-                    <SwipeCard
-                      key={card.id || card.name + index}
-                      waifu={card}
-                      preferences={preferences}
-                      style={cardStyle}
-                      interactive={isTop}
-                      likeOpacity={isTop ? likeOpacity : 0}
-                      passOpacity={isTop ? passOpacity : 0}
-                      onPointerDown={onPointerDown}
-                      onPointerMove={onPointerMove}
-                      onPointerUp={onPointerUp}
-                      fallbackImage={lastSwipedImage}
-                      enableAtmosphere={true}
-                      onOpenGachaFans={(w) => {
-                        setActiveGachaFansCompanion(w);
-                        if (isDesktop) setRightPanelTab('gachafans');
-                        else setIsGachaFansOpen(true);
-                      }}
-                      onOpenMatrix={() => setIsMatrixShooterOpen(true)}
-                    />
-                  );
-                })
-                .reverse()
-            ) : (
-              <LoadingCard
-                top={true}
-                generation={currentGeneration}
-                onRetry={() => generateNextWaifu()}
-                emptyQueueAndNoAuto={false}
-                onForceGenerate={() => generateNextWaifu()}
-                fallbackImage={lastSwipedImage}
+            <button
+              onClick={() => setIsCloudVaultOpen(true)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                color: '#FFD700',
+                fontSize: '11px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                textShadow: '0 0 6px rgba(255,215,0,0.4)',
+                padding: 0
+              }}
+              title="Spark Tokens & Cloud Vault"
+            >
+              <SparkIcon />
+              <span>{sparkTokens}</span>
+            </button>
+
+            <button
+              className="header-icon-btn"
+              onClick={() => {
+                matrixAudio.playClick();
+                if (isDesktop) {
+                  setIsRightPanelOpen(!isRightPanelOpen);
+                } else {
+                  setIsRoleplayOpen(true);
+                }
+              }}
+              title="Toggle Messenger"
+              style={{ color: '#FF107A', background: 'transparent', border: 'none', cursor: 'pointer', position: 'relative' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </button>
+
+            <button
+              className="header-icon-btn"
+              onClick={() => {
+                matrixAudio.playClick();
+                if (isDesktop) {
+                  setRightPanelTab('settings');
+                  setIsRightPanelOpen(true);
+                } else {
+                  setIsSettingsOpen(true);
+                }
+              }}
+              title="Settings"
+              style={{ color: 'rgba(255,255,255,0.6)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+            >
+              ⚙️
+            </button>
+          </div>
+        </div>
+
+        {/* Subheader Status Line */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexShrink: 0 }}>
+          <span
+            style={{
+              fontSize: '10.5px',
+              fontStyle: 'italic',
+              color: '#FF107A',
+              fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
+              textShadow: '0 0 6px rgba(255, 16, 122, 0.4)'
+            }}
+          >
+            * Leaning over Master's shoulder, collar jingling ✨
+          </span>
+          <span style={{ fontSize: '9.5px', color: syncColor, fontWeight: 'bold' }}>
+            {syncText} ({meterProgress}%)
+          </span>
+        </div>
+
+        {/* 🎴 Card Stage Arena with 3D Preservation */}
+        <div
+          className="card-area"
+          style={{
+            flex: 1,
+            position: 'relative',
+            minHeight: 0,
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            perspective: '1000px',
+            overflow: 'hidden'
+          }}
+        >
+          {activeDeck.length > 0 ? (
+            activeDeck
+              .slice(0, 3)
+              .map((card, index) => {
+                const isTop = index === 0;
+                const cardStyle = isTop
+                  ? {
+                      transform: 'translate(' + dragPos.x + 'px, ' + dragPos.y + 'px) rotate(' + rotation + 'deg) rotateY(' + rotateY + 'deg) rotateX(' + rotateX + 'deg)',
+                      transformStyle: 'preserve-3d',
+                      transition: isDragging ? 'none' : 'transform 0.35s cubic-bezier(.2,.8,.2,1)',
+                      zIndex: 10
+                    }
+                  : {
+                      transform: 'translateY(' + index * 16 + 'px) scale(' + (1 - index * 0.045) + ')',
+                      transition: 'transform 0.35s cubic-bezier(.2,.8,.2,1)',
+                      zIndex: 10 - index,
+                      filter: 'saturate(0.92)'
+                    };
+
+                return (
+                  <SwipeCard
+                    key={card.id || card.name + index}
+                    waifu={card}
+                    preferences={preferences}
+                    style={cardStyle}
+                    interactive={isTop}
+                    likeOpacity={isTop ? likeOpacity : 0}
+                    passOpacity={isTop ? passOpacity : 0}
+                    onPointerDown={onPointerDown}
+                    onPointerMove={onPointerMove}
+                    onPointerUp={onPointerUp}
+                    fallbackImage={lastSwipedImage}
+                    enableAtmosphere={true}
+                    onOpenGachaFans={(w) => {
+                      setActiveGachaFansCompanion(w);
+                      if (isDesktop) {
+                        setRightPanelTab('gachafans');
+                        setIsRightPanelOpen(true);
+                      } else {
+                        setIsGachaFansOpen(true);
+                      }
+                    }}
+                    onOpenMatrix={() => setIsMatrixShooterOpen(true)}
+                  />
+                );
+              })
+              .reverse()
+          ) : (
+            <LoadingCard
+              top={true}
+              generation={currentGeneration}
+              onRetry={() => (swipeMode === 'music' ? generateSongConcepts() : generateNextWaifu())}
+              emptyQueueAndNoAuto={false}
+              onForceGenerate={() => (swipeMode === 'music' ? generateSongConcepts() : generateNextWaifu())}
+              fallbackImage={lastSwipedImage}
+            />
+          )}
+        </div>
+
+        {/* 🕹️ Bottom Swipe Controls Deck */}
+        <div
+          className="swipe-controls"
+          style={{
+            display: 'flex',
+            justifyContent: 'space-around',
+            alignItems: 'center',
+            padding: '6px 0 10px',
+            flexShrink: 0,
+            zIndex: 10,
+            width: '100%'
+          }}
+        >
+          {/* 1. Profile / Vault Button */}
+          <button
+            onClick={() => {
+              matrixAudio.playClick();
+              if (isDesktop) setIsLeftPanelOpen(!isLeftPanelOpen);
+              else setIsRosterOpen(true);
+            }}
+            title="Character Roster"
+            style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '12px',
+              background: 'rgba(0, 229, 255, 0.15)',
+              border: '1px solid #00E5FF',
+              color: '#00E5FF',
+              display: 'grid',
+              placeItems: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: '0 0 15px rgba(0,229,255,0.2)',
+              flexShrink: 0
+            }}
+          >
+            <UserIcon size={18} />
+          </button>
+
+          {/* 2. Pass Button (X) */}
+          <button
+            onClick={() => {
+              if (currentCard) {
+                swipeMode === 'music' ? handleMusicSwipe('left', currentCard) : processSwipe('left', currentCard);
+              }
+            }}
+            title="Pass (Left Arrow / A)"
+            className="control-btn pass"
+            style={{ width: '56px', height: '56px', borderRadius: '12px' }}
+          >
+            <XIcon size={24} />
+          </button>
+
+          {/* 3. Rewind Button */}
+          <button
+            onClick={rewindSwipe}
+            title="Rewind (R)"
+            className="control-btn rewind"
+            style={{ width: '42px', height: '42px', borderRadius: '12px' }}
+          >
+            <RewindIcon />
+          </button>
+
+          {/* 4. Like Button (Heart) */}
+          <button
+            onClick={() => {
+              if (currentCard) {
+                swipeMode === 'music' ? handleMusicSwipe('right', currentCard) : processSwipe('right', currentCard);
+              }
+            }}
+            title="Match / Like (Right Arrow / D)"
+            className="control-btn like"
+            style={{ width: '56px', height: '56px', borderRadius: '12px' }}
+          >
+            <HeartIcon />
+          </button>
+
+          {/* 5. Music Mode Toggle */}
+          <button
+            onClick={() => {
+              matrixAudio.playClick();
+              if (swipeMode === 'dating') {
+                setSwipeMode('music');
+                if (beatQueue.length === 0) generateSongConcepts();
+              } else {
+                setSwipeMode('dating');
+              }
+            }}
+            title="Toggle Music Mode"
+            style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '12px',
+              background: swipeMode === 'music' ? 'rgba(181, 51, 255, 0.25)' : 'rgba(255,255,255,0.05)',
+              border: swipeMode === 'music' ? '1px solid #B533FF' : '1px solid rgba(255,255,255,0.15)',
+              color: swipeMode === 'music' ? '#B533FF' : '#888',
+              display: 'grid',
+              placeItems: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: swipeMode === 'music' ? '0 0 15px rgba(181, 51, 255, 0.3)' : 'none',
+              flexShrink: 0
+            }}
+          >
+            <MusicIcon />
+          </button>
+        </div>
+
+        {/* Floating Cassette Deck / Music HUD */}
+        <GlobalMusicPlayer
+          tape={activeTape || { name: 'Ace-Step Cyber BGM', genre: 'Synthwave', audioUrl: '' }}
+          archive={[]}
+          onSelectTape={(t) => setActiveTape(t)}
+          onClose={() => setActiveTape(null)}
+        />
+      </main>
+
+      {/* ==================== 3. RIGHT PANEL: LIVE CYBER TERMINAL ==================== */}
+      {isDesktop && isRightPanelOpen && (
+        <aside
+          style={{
+            width: '380px',
+            minWidth: '360px',
+            maxWidth: '420px',
+            height: '100dvh',
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            background: '#07050E',
+            borderLeft: '1px solid rgba(0, 229, 255, 0.18)',
+            overflow: 'hidden',
+            zIndex: 20,
+            boxSizing: 'border-box'
+          }}
+        >
+          {/* Tab Selector Header */}
+          <div
+            style={{
+              height: '46px',
+              borderBottom: '1px solid rgba(0, 229, 255, 0.18)',
+              background: '#0B0914',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-around',
+              padding: '0 8px',
+              flexShrink: 0
+            }}
+          >
+            {[
+              { id: 'chat', label: '💬 CHAT', color: '#00E5FF' },
+              { id: 'group', label: '👥 GROUP', color: '#FF107A' },
+              { id: 'gachafans', label: '⭐ FANS', color: '#FFD700' },
+              { id: 'settings', label: '⚙️ OPTS', color: '#00FF9D' }
+            ].map((tab) => {
+              const isActive = rightPanelTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    matrixAudio.playClick();
+                    setRightPanelTab(tab.id);
+                  }}
+                  style={{
+                    flex: 1,
+                    height: '100%',
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: isActive ? '2px solid ' + tab.color : '2px solid transparent',
+                    color: isActive ? tab.color : 'rgba(255,255,255,0.4)',
+                    fontWeight: isActive ? 800 : 500,
+                    fontSize: '11px',
+                    fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    letterSpacing: '0.04em'
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Tab Body */}
+          <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+            {rightPanelTab === 'chat' && (
+              <CyberMessenger
+                isEmbedded={true}
+                companion={activeRoleplayCompanion || currentCard}
+                onClose={() => setIsRightPanelOpen(false)}
+                onShowToast={showToast}
+                userCredits={sparkTokens}
+              />
+            )}
+
+            {rightPanelTab === 'group' && (
+              <CyberGroupChat
+                isEmbedded={true}
+                activeRoster={Object.values(inbox).map((i) => i.waifu)}
+                onShowToast={showToast}
+              />
+            )}
+
+            {rightPanelTab === 'gachafans' && (
+              <GachaFansModal
+                isOpen={true}
+                companion={activeGachaFansCompanion || currentCard}
+                onClose={() => setRightPanelTab('chat')}
+                onLaunchHack={() => setIsMatrixShooterOpen(true)}
+                userCredits={sparkTokens}
+                setUserCredits={setSparkTokens}
+                onShowToast={showToast}
+              />
+            )}
+
+            {rightPanelTab === 'settings' && (
+              <SettingsModal
+                isOpen={true}
+                onClose={() => setRightPanelTab('chat')}
+                onShowToast={showToast}
+                onResetDeck={() => {
+                  setQueue(STARTER_CARDS);
+                  showToast('Queue restored to starter deck!');
+                }}
               />
             )}
           </div>
+        </aside>
+      )}
 
-          {/* Bottom Swipe Controls */}
-          <div className="w-full max-w-sm flex items-center justify-around gap-4 z-20 mt-3 pt-2 border-t border-[#00E5FF]/15">
-            {/* Rewind */}
-            <button
-              onClick={rewindSwipe}
-              className="w-12 h-12 rounded-full bg-[#111] border border-gray-600 text-yellow-400 flex items-center justify-center hover:bg-yellow-400/20 hover:border-yellow-400 transition-all shadow-lg active:scale-95"
-              title="Rewind Last Pass"
-            >
-              <RewindIcon />
-            </button>
-
-            {/* Pass */}
-            <button
-              onClick={() => {
-                if (currentCard) {
-                  swipeMode === 'music' ? handleMusicSwipe('left', currentCard) : processSwipe('left', currentCard);
-                }
-              }}
-              className="w-14 h-14 rounded-full bg-[#111] border-2 border-[#FF3366] text-[#FF3366] flex items-center justify-center hover:bg-[#FF3366]/20 transition-all shadow-lg active:scale-95 text-xl"
-              title="Pass"
-            >
-              <XIcon size={24} />
-            </button>
-
-            {/* Boost / Superlike */}
-            <button
-              onClick={() => {
-                if (sparkTokens >= 1 && currentCard) {
-                  setSparkTokens((s) => s - 1);
-                  showToast('⚡ SUPERLIKE BOOSTED: ' + (currentCard.name || '').toUpperCase());
-                  processSwipe('right', currentCard);
-                } else {
-                  showToast('Not enough Spark Tokens! ⚡');
-                }
-              }}
-              className="w-12 h-12 rounded-full bg-[#111] border border-[#00FF9D] text-[#00FF9D] flex items-center justify-center hover:bg-[#00FF9D]/20 transition-all shadow-lg active:scale-95"
-              title="Superlike (1 Spark)"
-            >
-              <SparkIcon />
-            </button>
-
-            {/* Like / Match */}
-            <button
-              onClick={() => {
-                if (currentCard) {
-                  swipeMode === 'music' ? handleMusicSwipe('right', currentCard) : processSwipe('right', currentCard);
-                }
-              }}
-              className="w-14 h-14 rounded-full bg-[#111] border-2 border-[#00E5FF] text-[#00E5FF] flex items-center justify-center hover:bg-[#00E5FF]/20 transition-all shadow-lg active:scale-95 text-xl"
-              title="Match / Like"
-            >
-              <HeartIcon />
-            </button>
-          </div>
-
-          {/* Floating Cassette Deck / Music HUD */}
-          <GlobalMusicPlayer
-            tape={activeTape || { name: 'Ace-Step Cyber BGM', genre: 'Synthwave', audioUrl: '' }}
-            archive={[]}
-            onSelectTape={(t) => setActiveTape(t)}
-            onClose={() => setActiveTape(null)}
-          />
-        </main>
-
-        {/* ==================== RIGHT PANEL: MESSENGER & EXTRAS ==================== */}
-        {isDesktop && (
-          <aside className="w-96 border-l border-[#00E5FF]/20 bg-[#07050E] flex flex-col z-30">
-            {/* Panel Tabs Header */}
-            <div className="h-12 border-b border-[#00E5FF]/20 bg-[#0B0914] flex items-center justify-around px-2">
-              <button
-                onClick={() => setRightPanelTab('chat')}
-                className={'flex-1 py-2 text-xs font-bold transition-all border-b-2 ' + (rightPanelTab === 'chat' ? 'text-[#00E5FF] border-[#00E5FF]' : 'text-gray-400 border-transparent hover:text-white')}
-              >
-                💬 CHAT
-              </button>
-              <button
-                onClick={() => setRightPanelTab('group')}
-                className={'flex-1 py-2 text-xs font-bold transition-all border-b-2 ' + (rightPanelTab === 'group' ? 'text-[#FF107A] border-[#FF107A]' : 'text-gray-400 border-transparent hover:text-white')}
-              >
-                👥 GROUP
-              </button>
-              <button
-                onClick={() => setRightPanelTab('gachafans')}
-                className={'flex-1 py-2 text-xs font-bold transition-all border-b-2 ' + (rightPanelTab === 'gachafans' ? 'text-[#FFD700] border-[#FFD700]' : 'text-gray-400 border-transparent hover:text-white')}
-              >
-                ⭐ FANS
-              </button>
-              <button
-                onClick={() => setRightPanelTab('settings')}
-                className={'flex-1 py-2 text-xs font-bold transition-all border-b-2 ' + (rightPanelTab === 'settings' ? 'text-[#00FF9D] border-[#00FF9D]' : 'text-gray-400 border-transparent hover:text-white')}
-              >
-                ⚙️ OPTS
-              </button>
-            </div>
-
-            {/* Panel Body */}
-            <div className="flex-1 overflow-hidden relative">
-              {rightPanelTab === 'chat' && (
-                <CyberMessenger
-                  isEmbedded={true}
-                  companion={activeRoleplayCompanion || currentCard}
-                  onClose={() => {}}
-                  onShowToast={showToast}
-                />
-              )}
-
-              {rightPanelTab === 'group' && (
-                <CyberGroupChat
-                  isEmbedded={true}
-                  activeRoster={Object.values(inbox).map((i) => i.waifu)}
-                  onShowToast={showToast}
-                />
-              )}
-
-              {rightPanelTab === 'gachafans' && (
-                <GachaFansModal
-                  isOpen={true}
-                  companion={activeGachaFansCompanion || currentCard}
-                  onClose={() => setRightPanelTab('chat')}
-                  onLaunchHack={() => setIsMatrixShooterOpen(true)}
-                  userCredits={sparkTokens}
-                  setUserCredits={setSparkTokens}
-                  onShowToast={showToast}
-                />
-              )}
-
-              {rightPanelTab === 'settings' && (
-                <SettingsModal
-                  isOpen={true}
-                  onClose={() => setRightPanelTab('chat')}
-                  onShowToast={showToast}
-                  onResetDeck={() => {
-                    setQueue(STARTER_CARDS);
-                    showToast('Queue restored to starter deck!');
-                  }}
-                />
-              )}
-            </div>
-          </aside>
-        )}
-      </div>
-
-      {/* 📱 MOBILE RESPONSIVE MODALS (For phone/tablet viewing) */}
+      {/* 📱 MOBILE RESPONSIVE OVERLAYS (when screen is narrow) */}
       {!isDesktop && (
         <>
-          {/* Mobile Bottom Navigation Bar */}
-          <nav className="h-14 border-t border-[#00E5FF]/20 bg-[#0B0914] flex items-center justify-around px-4 z-40">
+          {/* Mobile Bottom Bar */}
+          <nav
+            style={{
+              position: 'fixed',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: '56px',
+              borderTop: '1px solid rgba(0, 229, 255, 0.2)',
+              background: '#0B0914',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-around',
+              padding: '0 16px',
+              zIndex: 40
+            }}
+          >
             <button
               onClick={() => setIsRosterOpen(true)}
-              className="flex flex-col items-center gap-1 text-gray-400 hover:text-[#00E5FF]"
+              style={{ background: 'transparent', border: 'none', color: '#00E5FF', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}
             >
               <UserIcon size={18} />
-              <span className="text-[10px]">Roster</span>
+              <span style={{ fontSize: '10px' }}>Roster</span>
             </button>
             <button
               onClick={() => setIsRoleplayOpen(true)}
-              className="flex flex-col items-center gap-1 text-gray-400 hover:text-[#00E5FF]"
+              style={{ background: 'transparent', border: 'none', color: '#FF107A', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}
             >
               <span>💬</span>
-              <span className="text-[10px]">Chat</span>
+              <span style={{ fontSize: '10px' }}>Chat</span>
             </button>
             <button
               onClick={() => setIsGachaFansOpen(true)}
-              className="flex flex-col items-center gap-1 text-gray-400 hover:text-[#FFD700]"
+              style={{ background: 'transparent', border: 'none', color: '#FFD700', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}
             >
               <span>⭐</span>
-              <span className="text-[10px]">Fans</span>
+              <span style={{ fontSize: '10px' }}>Fans</span>
             </button>
             <button
               onClick={() => setIsSettingsOpen(true)}
-              className="flex flex-col items-center gap-1 text-gray-400 hover:text-white"
+              style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}
             >
               <span>⚙️</span>
-              <span className="text-[10px]">Config</span>
+              <span style={{ fontSize: '10px' }}>Config</span>
             </button>
           </nav>
 
           {isRosterOpen && (
-            <RosterPanel
-              isEmbedded={false}
-              activeCard={currentCard}
-              history={sessionHistory}
-              swipes={swipes}
-              sparks={sparkTokens}
-              onClose={() => setIsRosterOpen(false)}
-              onSelectCard={(c) => {
-                setActiveRoleplayCompanion(c);
-                setIsRosterOpen(false);
-                setIsRoleplayOpen(true);
-              }}
-              onOpenChat={(c) => {
-                setActiveRoleplayCompanion(c);
-                setIsRosterOpen(false);
-                setIsRoleplayOpen(true);
-              }}
-              onOpenGachaFans={(c) => {
-                setActiveGachaFansCompanion(c);
-                setIsRosterOpen(false);
-                setIsGachaFansOpen(true);
-              }}
-              onOpenSettings={() => {
-                setIsRosterOpen(false);
-                setIsSettingsOpen(true);
-              }}
-              onOpenCloudVault={() => {
-                setIsRosterOpen(false);
-                setIsCloudVaultOpen(true);
-              }}
-            />
+            <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: '#050308' }}>
+              <RosterPanel
+                isEmbedded={false}
+                activeCard={currentCard}
+                history={sessionHistory}
+                swipes={swipes}
+                sparks={sparkTokens}
+                onClose={() => setIsRosterOpen(false)}
+                onSelectCard={(c) => {
+                  setActiveRoleplayCompanion(c);
+                  setIsRosterOpen(false);
+                  setIsRoleplayOpen(true);
+                }}
+                onOpenChat={(c) => {
+                  setActiveRoleplayCompanion(c);
+                  setIsRosterOpen(false);
+                  setIsRoleplayOpen(true);
+                }}
+                onOpenGachaFans={(c) => {
+                  setActiveGachaFansCompanion(c);
+                  setIsRosterOpen(false);
+                  setIsGachaFansOpen(true);
+                }}
+                onOpenSettings={() => {
+                  setIsRosterOpen(false);
+                  setIsSettingsOpen(true);
+                }}
+                onOpenCloudVault={() => {
+                  setIsRosterOpen(false);
+                  setIsCloudVaultOpen(true);
+                }}
+              />
+            </div>
           )}
 
           {isRoleplayOpen && (
-            <CyberMessenger
-              isEmbedded={false}
-              companion={activeRoleplayCompanion || currentCard}
-              onClose={() => setIsRoleplayOpen(false)}
-              onShowToast={showToast}
-            />
+            <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: '#050308' }}>
+              <CyberMessenger
+                isEmbedded={false}
+                companion={activeRoleplayCompanion || currentCard}
+                onClose={() => setIsRoleplayOpen(false)}
+                onShowToast={showToast}
+                userCredits={sparkTokens}
+              />
+            </div>
           )}
 
           {isGachaFansOpen && (
@@ -1043,19 +1318,19 @@ export default function App() {
 
       {/* Chimera Audio Studio Modal */}
       {isDawOpen && (
-        <div className="fixed inset-0 z-50 bg-[#050308]/95 backdrop-blur-md flex flex-col p-4 overflow-y-auto">
-          <div className="flex items-center justify-between border-b border-[#00E5FF]/30 pb-3 mb-4 max-w-4xl mx-auto w-full">
-            <h2 className="text-[#00E5FF] font-bold tracking-widest text-lg flex items-center gap-2">
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(5, 3, 8, 0.96)', backdropFilter: 'blur(12px)', display: 'flex', flexDirection: 'column', padding: '16px', overflowY: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,229,255,0.3)', paddingBottom: '12px', marginBottom: '16px', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
+            <h2 style={{ color: '#00E5FF', fontWeight: 800, letterSpacing: '0.1em', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
               <span>🧬</span> ACE-STEP CHIMERA AUDIO MATRIX
             </h2>
             <button
               onClick={() => setIsDawOpen(false)}
-              className="text-gray-400 hover:text-white px-3 py-1 rounded border border-white/20 text-xs font-bold"
+              style={{ color: '#aaa', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', padding: '6px 12px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
             >
               [ CLOSE_STUDIO ]
             </button>
           </div>
-          <div className="max-w-4xl mx-auto w-full flex-1">
+          <div style={{ maxWidth: '800px', margin: '0 auto', width: '100%', flex: 1 }}>
             <ChimeraEngine
               dawState={dawState}
               setDawState={setDawState}
@@ -1082,7 +1357,7 @@ export default function App() {
 
       {/* Matrix Arcade Shooter Modal */}
       {isMatrixShooterOpen && (
-        <div className="fixed inset-0 z-50 bg-[#050308] flex items-center justify-center">
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#050308', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <MatrixShooter
             waifu={currentCard}
             themeColor={currentCard?.themeColor || '#00E5FF'}
