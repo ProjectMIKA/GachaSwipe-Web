@@ -1,11 +1,20 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
-import './core/index.css';
+import './index.css';
+import { LaylaWebSDK } from './web/laylaWebAdapter.js';
 import JSZip from 'jszip';
 
-// Export JSZip to window for deck archiving
+// Initialize Web-Native Layla SDK and export globals
+window.LaylaSDK = LaylaWebSDK;
+window.layla = new LaylaWebSDK();
 window.JSZip = JSZip;
+window.installLaylaMock = ({ debug } = {}) => {
+  console.log("🐾 [M.I.K.A. OS] Web-Native Layla Shim Active 🐾");
+};
+
+// Dispatch readiness event for any listeners waiting on the SDK
+window.dispatchEvent(new Event('layla-sdk-ready'));
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -18,31 +27,34 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error("M.I.K.A. Matrix Crash caught:", error, errorInfo);
+    console.error("🐾 [M.I.K.A. OS] Unhandled UI Exception:", error, errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
       return (
         <div style={{
-          minHeight: '100vh', width: '100vw', background: '#0B0914', color: '#ff77a9',
+          minHeight: '100vh', width: '100vw', background: '#050308', color: '#00E5FF',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          padding: '24px', fontFamily: 'monospace', textAlign: 'center'
+          padding: '24px', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", textAlign: 'center'
         }}>
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>🐾⚠️</div>
-          <h2 style={{ color: '#00F5D4', margin: '0 0 12px 0' }}>M.I.K.A. OS Exception Intercepted</h2>
-          <p style={{ color: '#fff', maxWidth: '500px', lineHeight: 1.5, marginBottom: '20px' }}>
-            {this.state.error?.message || 'An unexpected error occurred in the card deck.'}
+          <h2 style={{ color: '#00E5FF', margin: '0 0 12px 0', textShadow: '0 0 10px rgba(0,229,255,0.4)' }}>
+            &gt; SYSTEM_EXCEPTION_INTERCEPTED
+          </h2>
+          <p style={{ color: '#EBE3D6', maxWidth: '600px', lineHeight: 1.5, marginBottom: '24px', fontSize: '12px' }}>
+            {this.state.error?.message || 'A neural matrix disruption occurred.'}
           </p>
           <button
             onClick={() => window.location.reload()}
             style={{
-              padding: '10px 20px', borderRadius: '12px', border: 'none',
-              background: 'linear-gradient(135deg, #ff77a9, #a370f7)',
-              color: '#fff', fontWeight: 'bold', cursor: 'pointer'
+              padding: '10px 24px', borderRadius: '4px', border: '1px solid #00E5FF',
+              background: 'rgba(0, 229, 255, 0.1)', color: '#00E5FF',
+              fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
+              fontWeight: 'bold', cursor: 'pointer', letterSpacing: '0.1em'
             }}
           >
-            Reboot Matrix
+            [ REBOOT_MATRIX ]
           </button>
         </div>
       );
@@ -51,10 +63,30 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  </React.StrictMode>
-);
+const bootApp = () => {
+  try {
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    );
+  } catch (error) {
+    console.error("CRITICAL BOOT FAILURE:", error);
+    if (document.body) {
+      document.body.innerHTML = `
+        <div style="color: #00E5FF; background: #050308; padding: 30px; font-family: monospace; position: absolute; inset: 0; z-index: 999999;">
+          <h3>🐾 [M.I.K.A. OS] BOOT FAILURE</h3>
+          <p>${error.message}</p>
+          <pre>${error.stack}</pre>
+        </div>
+      `;
+    }
+  }
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootApp);
+} else {
+  bootApp();
+}

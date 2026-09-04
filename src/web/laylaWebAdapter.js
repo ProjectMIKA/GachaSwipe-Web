@@ -78,14 +78,45 @@ function generateProceduralSynthWav(durationSeconds = 6, bpm = 120) {
 
 export class LaylaWebSDK {
     constructor() {
-        // 1. Classifier / Sentiment Engine
+        // 1. Contextual & Version Execution Context
+        this.contextual = {
+            getExecutionContext: async (options) => {
+                return {
+                    app_version: "7.4.5",
+                    host_os: "web",
+                    character: null,
+                    session_id: "mika_web_session_" + Date.now()
+                };
+            }
+        };
+
+        // 2. User Persona Manager
+        this.personas = {
+            get: async () => {
+                try {
+                    const record = await db.settings.get("user_persona");
+                    if (record?.value) return record.value;
+                } catch (e) {}
+                return {
+                    name: "Master",
+                    avatar: "",
+                    role: "User"
+                };
+            },
+            update: async (personaData) => {
+                await db.settings.put({ key: "user_persona", value: personaData });
+                return personaData;
+            }
+        };
+
+        // 3. Classifier / Sentiment Engine
         this.classifier = {
             getSentiment: async (text) => {
                 return classifySentiment(text);
             }
         };
 
-        // 2. Chat Completions & Streaming
+        // 4. Chat Completions & Streaming
         this.chat = {
             completions: {
                 create: async (params) => {
@@ -114,6 +145,16 @@ export class LaylaWebSDK {
                     });
                 }
             },
+            getInferenceEngines: async () => [
+                { id: "chatgpt-4o-latest", name: "ChatGPT-4o (NanoGPT Cloud)", engine: "chatgpt-4o-latest" },
+                { id: "claude-3-5-sonnet", name: "Claude 3.5 Sonnet (NanoGPT)", engine: "claude-3-5-sonnet" },
+                { id: "deepseek-chat", name: "DeepSeek Chat (NanoGPT)", engine: "deepseek-chat" },
+                { id: "offline-mock", name: "Offline Procedural Proxy", engine: "offline-mock" }
+            ],
+            setInferenceEngine: async (engineId) => {
+                await db.settings.put({ key: "active_inference_engine", value: engineId });
+                return true;
+            },
             scheduleChatMessage: async (params) => {
                 console.log("[M.I.K.A. Web] Proactive message timer scheduled:", params);
                 return { success: true, id: "sched_" + Date.now() };
@@ -125,7 +166,7 @@ export class LaylaWebSDK {
             getScheduledChatMessages: async () => []
         };
 
-        // 3. Image Synthesis
+        // 5. Image Synthesis
         this.images = {
             generateImage: async (promptOrParams, onProgress, opts, model, extra) => {
                 let prompt = "";
@@ -157,7 +198,7 @@ export class LaylaWebSDK {
             ]
         };
 
-        // 4. Memory Archive
+        // 6. Memory Archive
         this.memories = {
             createOrUpdate: async (companionId, memoryObj) => {
                 const text = memoryObj.text || memoryObj.rawText || "";
@@ -171,91 +212,154 @@ export class LaylaWebSDK {
             }
         };
 
-        // 5. Database SQL Interceptor (Polyfill for SQLite on top of Dexie)
+        // 7. Database SQL Interceptor (Polyfill for SQLite on top of Dexie)
         this.db = {
             executeSql: async (query, params = []) => {
-                const q = query.trim().toUpperCase();
+                const q = (query || "").trim();
+                const upperQ = q.toUpperCase();
 
-                // CREATE TABLE handlers
-                if (q.startsWith("CREATE TABLE")) {
-                    return { rows: { raw: () => [] } };
+                // 1. CREATE TABLE
+                if (upperQ.startsWith("CREATE TABLE")) {
+                    const emptyRes = { rows: { raw: () => [], length: 0, item: () => null, 0: null } };
+                    return emptyRes;
                 }
 
-                // SELECT handlers
-                if (q.startsWith("SELECT")) {
-                    if (q.includes("CHATS")) {
-                        const allChats = await db.chats.toArray();
-                        return {
-                            rows: {
-                                raw: () => allChats,
-                                length: allChats.length,
-                                item: (i) => allChats[i]
-                            }
-                        };
+                // 2. DELETE
+                if (upperQ.startsWith("DELETE FROM")) {
+                    if (upperQ.includes("CHATS")) {
+                        if (upperQ.includes("WHERE ID = ?") || upperQ.includes("WHERE ID =")) {
+                            const id = params[0] || (q.match(/WHERE\s+id\s*=\s*['"]?([^'"]+)['"]?/i)?.[1]);
+                            if (id) await db.chats.delete(String(id));
+                        } else {
+                            await db.chats.clear();
+                        }
+                    } else if (upperQ.includes("APP_STATE")) {
+                        await db.app_state.clear();
+                    } else if (upperQ.includes("APP_META")) {
+                        await db.app_meta.clear();
+                    } else if (upperQ.includes("HISTORY")) {
+                        await db.history.clear();
+                    } else if (upperQ.includes("THEMES")) {
+                        await db.themes.clear();
                     }
-                    if (q.includes("APP_META")) {
-                        const meta = await db.app_meta.toArray();
-                        return {
-                            rows: {
-                                raw: () => meta,
-                                length: meta.length,
-                                item: (i) => meta[i]
-                            }
-                        };
-                    }
-                    if (q.includes("APP_STATE")) {
-                        const states = await db.app_state.toArray();
-                        return {
-                            rows: {
-                                raw: () => states,
-                                length: states.length,
-                                item: (i) => states[i]
-                            }
-                        };
-                    }
-                    if (q.includes("THEMES")) {
-                        const ths = await db.themes.toArray();
-                        return {
-                            rows: {
-                                raw: () => ths,
-                                length: ths.length,
-                                item: (i) => ths[i]
-                            }
-                        };
-                    }
-                    return { rows: { raw: () => [], length: 0, item: () => null } };
+                    return { rowsAffected: 1 };
                 }
 
-                // INSERT / REPLACE / UPDATE handlers
-                if (q.startsWith("INSERT") || q.startsWith("REPLACE") || q.startsWith("UPDATE")) {
-                    if (q.includes("CHATS")) {
+                // 3. SELECT
+                if (upperQ.startsWith("SELECT")) {
+                    let results = [];
+
+                    if (upperQ.includes("APP_META")) {
+                        let key = null;
+                        if (upperQ.includes("WHERE KEY = ?")) {
+                            key = params[0];
+                        } else {
+                            const match = q.match(/WHERE\s+key\s*=\s*['"]([^'"]+)['"]/i);
+                            if (match) key = match[1];
+                        }
+                        if (key) {
+                            const item = await db.app_meta.get(key);
+                            results = item ? [item] : [];
+                        } else {
+                            results = await db.app_meta.toArray();
+                        }
+                    } else if (upperQ.includes("APP_STATE")) {
+                        let key = null;
+                        if (upperQ.includes("WHERE KEY = ?")) {
+                            key = params[0];
+                        } else {
+                            const match = q.match(/WHERE\s+key\s*=\s*['"]([^'"]+)['"]/i);
+                            if (match) key = match[1];
+                        }
+                        if (key) {
+                            const item = await db.app_state.get(key);
+                            results = item ? [item] : [];
+                        } else {
+                            results = await db.app_state.toArray();
+                        }
+                    } else if (upperQ.includes("CHATS")) {
+                        if (upperQ.includes("WHERE ID = ?") || upperQ.includes("WHERE ID =")) {
+                            const id = params[0] || (q.match(/WHERE\s+id\s*=\s*['"]?([^'"]+)['"]?/i)?.[1]);
+                            if (id) {
+                                const item = await db.chats.get(String(id));
+                                results = item ? [item] : [];
+                            }
+                        } else if (upperQ.includes("SELECT ID FROM CHATS")) {
+                            const all = await db.chats.toArray();
+                            results = all.map(c => ({ id: c.id }));
+                        } else {
+                            results = await db.chats.toArray();
+                        }
+                    } else if (upperQ.includes("THEMES")) {
+                        results = await db.themes.toArray();
+                    } else if (upperQ.includes("HISTORY")) {
+                        results = await db.history.toArray();
+                    }
+
+                    const rowsObj = {
+                        raw: () => results,
+                        length: results.length,
+                        item: (i) => results[i] || null
+                    };
+                    results.forEach((row, i) => { rowsObj[i] = row; });
+
+                    return { rows: rowsObj };
+                }
+
+                // 4. INSERT OR REPLACE INTO
+                if (upperQ.startsWith("INSERT") || upperQ.startsWith("REPLACE")) {
+                    if (upperQ.includes("APP_META")) {
+                        let key = params[0];
+                        let val = params[1];
+                        if (params.length === 0) {
+                            const match = q.match(/VALUES\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\)/i);
+                            if (match) { key = match[1]; val = match[2]; }
+                        }
+                        if (key !== undefined) {
+                            await db.app_meta.put({ key: String(key), val: String(val) });
+                        }
+                    } else if (upperQ.includes("APP_STATE")) {
+                        let key = null;
+                        let val = null;
+                        const matchKey = q.match(/VALUES\s*\(\s*['"]([^'"]+)['"]\s*,\s*\?\s*\)/i);
+                        if (matchKey) {
+                            key = matchKey[1];
+                            val = params[0];
+                        } else if (params.length >= 2) {
+                            key = params[0];
+                            val = params[1];
+                        }
+                        if (key) {
+                            await db.app_state.put({ key: String(key), val: typeof val === 'string' ? val : JSON.stringify(val) });
+                        }
+                    } else if (upperQ.includes("CHATS")) {
                         if (params.length >= 6) {
                             await db.chats.put({
-                                id: params[0],
-                                status: params[1],
-                                is_favorite: params[2],
-                                affection: params[3],
-                                data: params[4],
-                                updated_at: params[5]
+                                id: String(params[0]),
+                                status: String(params[1] || ""),
+                                is_favorite: Number(params[2] || 0),
+                                affection: Number(params[3] || 0),
+                                data: typeof params[4] === 'string' ? params[4] : JSON.stringify(params[4]),
+                                updated_at: Number(params[5] || Date.now())
                             });
                         }
-                    } else if (q.includes("APP_META")) {
+                    } else if (upperQ.includes("THEMES")) {
                         if (params.length >= 2) {
-                            await db.app_meta.put({ key: params[0], val: params[1] });
+                            await db.themes.put({ id: String(params[0]), data: typeof params[1] === 'string' ? params[1] : JSON.stringify(params[1]) });
                         }
-                    } else if (q.includes("APP_STATE")) {
-                        if (params.length >= 2) {
-                            await db.app_state.put({ key: params[0], val: params[1] });
+                    } else if (upperQ.includes("HISTORY")) {
+                        if (params.length >= 1) {
+                            await db.history.add({ data: typeof params[0] === 'string' ? params[0] : JSON.stringify(params[0]) });
                         }
                     }
                     return { rowsAffected: 1 };
                 }
 
-                return { rows: { raw: () => [] } };
+                return { rows: { raw: () => [], length: 0, item: () => null, 0: null } };
             }
         };
 
-        // 6. Characters / Companion Store
+        // 8. Characters / Companion Store
         this.characters = {
             list: async (offset = 0, limit = 9999) => {
                 const list = await db.cards.toArray();
@@ -273,7 +377,6 @@ export class LaylaWebSDK {
                 return card ? card.imageBlobOrUrl : null;
             },
             update: async (charData) => {
-                // Support CharaCardV2 spec
                 const specData = charData.data?.data || charData.data || charData;
                 const charId = charData.id || specData.id || "card_" + Date.now();
                 const name = specData.name || charData.name || "Unknown";
@@ -299,7 +402,7 @@ export class LaylaWebSDK {
             }
         };
 
-        // 7. Virtual Filesystem (layla.utils)
+        // 9. Virtual Filesystem (layla.utils)
         this.utils = {
             saveFile: async (filename, content_base64, overwrite = false) => {
                 await saveVirtualFile(filename, content_base64);
@@ -307,10 +410,9 @@ export class LaylaWebSDK {
             },
             readFile: async (filename) => {
                 const record = await readVirtualFile(filename);
-                if (record) {
+                if (record && record.content_base64) {
                     return { content_base64: record.content_base64, data: record.content_base64 };
                 }
-                // Try localStorage fallback
                 const lsData = localStorage.getItem("vf_" + filename);
                 if (lsData) {
                     return { content_base64: lsData, data: lsData };
@@ -319,10 +421,9 @@ export class LaylaWebSDK {
             }
         };
 
-        // 8. AceStep Audio Synthesis Pipeline
+        // 10. AceStep Audio Synthesis Pipeline
         this.acestep = {
             understand: async ({ audioBase64 }) => {
-                console.log("[M.I.K.A. AceStep] Audio DNA Harvested:", audioBase64 ? audioBase64.substring(0, 40) + "..." : "none");
                 return {
                     request: {
                         audio_context: "cyberpunk_synth_dna",
@@ -333,7 +434,6 @@ export class LaylaWebSDK {
                 };
             },
             lm: async ({ caption, lyrics, duration, lm_batch_size = 1 }) => {
-                console.log("[M.I.K.A. AceStep LM] Generating arrangement blueprints for:", caption);
                 return [
                     {
                         id: "take_" + Date.now(),
@@ -345,13 +445,11 @@ export class LaylaWebSDK {
                 ];
             },
             synth: async (params, options) => {
-                console.log("[M.I.K.A. AceStep Synth] Synthesizing audio take:", params);
                 if (options?.onProgress) {
                     options.onProgress({ current: 50, total: 100 });
                 }
 
-                // Simulate brief synthesis delay
-                await new Promise(r => setTimeout(r, 1400));
+                await new Promise(r => setTimeout(r, 600));
 
                 if (options?.onProgress) {
                     options.onProgress({ current: 100, total: 100 });
@@ -364,7 +462,7 @@ export class LaylaWebSDK {
             }
         };
 
-        // 9. Background Audio Player (HTML5 Audio Controller)
+        // 11. Background Audio Player (HTML5 Audio Controller)
         const audioListeners = { trackChanged: [], status: [], finished: [] };
         let currentAudio = null;
 
@@ -431,13 +529,20 @@ export class LaylaWebSDK {
             }
         };
 
-        // 10. TTS Voice Synthesis
+        // 12. TTS Voice Synthesis
         this.tts = {
             getVoices: async () => {
                 if (typeof window !== "undefined" && window.speechSynthesis) {
-                    return window.speechSynthesis.getVoices().map(v => ({ id: v.voiceURI, name: v.name, lang: v.lang }));
+                    const browserVoices = window.speechSynthesis.getVoices();
+                    if (browserVoices.length > 0) {
+                        return browserVoices.map(v => ({ id: v.voiceURI, name: v.name, lang: v.lang }));
+                    }
                 }
-                return [{ id: "mika_voice", name: "M.I.K.A. Neural Voice", lang: "en-US" }];
+                return [
+                    { id: "mika_neural", name: "M.I.K.A. Neural Voice (En)", lang: "en-US" },
+                    { id: "kokoro_en_female", name: "Kokoro Heart (En Female)", lang: "en-US" },
+                    { id: "piper_cyber_female", name: "Piper Cyberpunk (En)", lang: "en-US" }
+                ];
             },
             generateVoiceToFile: async (voiceId, text) => {
                 if (typeof window !== "undefined" && window.speechSynthesis) {

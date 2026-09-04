@@ -67,11 +67,23 @@ export function classifySentiment(text) {
         disgustCount += 1;
     }
 
+    const joyVal = Math.min(1.0, joyCount / Math.max(1, Math.min(6, totalWords)));
+    const loveVal = Math.min(1.0, loveCount / Math.max(1, Math.min(6, totalWords)));
+    const angerVal = Math.min(1.0, angerCount / Math.max(1, Math.min(6, totalWords)));
+    const disgustVal = Math.min(1.0, disgustCount / Math.max(1, Math.min(6, totalWords)));
+
     return {
-        joy: Math.min(1.0, joyCount / Math.max(1, Math.min(6, totalWords))),
-        love: Math.min(1.0, loveCount / Math.max(1, Math.min(6, totalWords))),
-        anger: Math.min(1.0, angerCount / Math.max(1, Math.min(6, totalWords))),
-        disgust: Math.min(1.0, disgustCount / Math.max(1, Math.min(6, totalWords)))
+        joy: joyVal,
+        admiration: joyVal * 0.85,
+        approval: joyVal * 0.75,
+        amusement: joyVal * 0.65,
+        love: loveVal,
+        caring: loveVal * 0.85,
+        desire: loveVal * 0.75,
+        anger: angerVal,
+        annoyance: angerVal * 0.85,
+        disapproval: angerVal * 0.75,
+        disgust: disgustVal
     };
 }
 

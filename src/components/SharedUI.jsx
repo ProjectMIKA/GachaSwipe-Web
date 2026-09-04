@@ -12,7 +12,7 @@ export const DetailsList = ({ items, label, tone, isBlock }) => {
         ? items 
         : (typeof items === 'string' ? items.split(/,\s*/) : [String(items)]);
     if (safeItems.length === 0) return null;
-    
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start', marginTop: '16px' }}>
             <span style={{ fontSize: 10, fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: tone === 'like' ? '#00E5FF' : 'rgba(0, 229, 255, 0.5)' }}>&gt; {label}</span>
