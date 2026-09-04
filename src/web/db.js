@@ -16,6 +16,15 @@ db.version(2).stores({
     gachafans: 'companionId, unlockedTiers, customSelfies, tips'
 });
 
+db.version(3).stores({
+    cards: '++id, uuid, characterName, imageBlobOrUrl, audioBlobOrUrl, metadata, createdAt, isSynced',
+    settings: 'key, value',
+    messages: '++id, companionId, role, content, imageUrl, timestamp',
+    gachafans: 'companionId, unlockedTiers, customSelfies, tips',
+    memories: '++id, companionId, text, summary, score, timestamp',
+    group_messages: '++id, groupId, speaker, role, content, imageUrl, themeColor, timestamp'
+});
+
 // --- Card Entity Helpers ---
 
 export async function saveCard(cardData) {
@@ -89,6 +98,92 @@ export function useChatMessages(companionId) {
         () => companionId ? db.messages.where('companionId').equals(String(companionId)).sortBy('timestamp') : [],
         [companionId]
     ) || [];
+}
+
+// --- Group Messages Storage Helpers ---
+
+export async function saveGroupMessage(groupId, messageData) {
+    if (!groupId) return null;
+    const msg = {
+        groupId: String(groupId),
+        speaker: messageData.speaker || 'Unknown',
+        role: messageData.role || 'assistant',
+        content: messageData.content || '',
+        imageUrl: messageData.imageUrl || null,
+        themeColor: messageData.themeColor || '#00E5FF',
+        avatar: messageData.avatar || null,
+        timestamp: messageData.timestamp || Date.now()
+    };
+    const id = await db.group_messages.add(msg);
+    return { ...msg, id };
+}
+
+export async function getGroupMessages(groupId, limit = 50) {
+    if (!groupId) return [];
+    const list = await db.group_messages
+        .where('groupId')
+        .equals(String(groupId))
+        .sortBy('timestamp');
+    return list.slice(-limit);
+}
+
+export async function clearGroupMessages(groupId) {
+    if (!groupId) return;
+    const keys = await db.group_messages
+        .where('groupId')
+        .equals(String(groupId))
+        .primaryKeys();
+    return await db.group_messages.bulkDelete(keys);
+}
+
+export function useGroupMessages(groupId) {
+    return useLiveQuery(
+        () => groupId ? db.group_messages.where('groupId').equals(String(groupId)).sortBy('timestamp') : [],
+        [groupId]
+    ) || [];
+}
+
+// --- Memory Archive Helpers ---
+
+export async function saveMemory(companionId, text, summary = '', score = 1) {
+    if (!companionId || !text) return null;
+    const mem = {
+        companionId: String(companionId),
+        text: text.trim(),
+        summary: (summary || text).trim(),
+        score: score || 1,
+        timestamp: Date.now()
+    };
+    const id = await db.memories.add(mem);
+    return { ...mem, id };
+}
+
+export async function getMemories(companionId, limit = 20) {
+    if (!companionId) return [];
+    const mems = await db.memories
+        .where('companionId')
+        .equals(String(companionId))
+        .reverse()
+        .sortBy('timestamp');
+    return mems.slice(0, limit);
+}
+
+export async function searchMemories(companionId, keywords = []) {
+    if (!companionId || !keywords.length) return [];
+    const all = await getMemories(companionId, 40);
+    const scored = all.map(m => {
+        const text = (m.summary + ' ' + m.text).toLowerCase();
+        let matchScore = 0;
+        keywords.forEach(kw => {
+            if (text.includes(kw.toLowerCase())) matchScore += 1;
+        });
+        return { memory: m, matchScore };
+    });
+    return scored
+        .filter(s => s.matchScore > 0)
+        .sort((a, b) => b.matchScore - a.matchScore)
+        .map(s => s.memory)
+        .slice(0, 3);
 }
 
 // --- GachaFans Storage Helpers ---
