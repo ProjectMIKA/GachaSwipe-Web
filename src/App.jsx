@@ -10,7 +10,7 @@ import { ThemeModal } from './web/ThemeModal.jsx';
 import { SwipeCard } from './core/components/SwipeCard.jsx';
 import { TerminalToast } from './core/components/TerminalToast.jsx';
 import { MatrixShooter } from './core/components/MatrixShooter.jsx';
-import { HeartIcon, XIcon, RewindIcon, SparkIcon, LockIcon } from './core/components/Icons.jsx';
+import { HeartIcon, XIcon, RewindIcon, SparkIcon, LockIcon, UserIcon, MusicIcon } from './core/components/Icons.jsx';
 import { DEFAULT_PROXY } from './core/data/constants.js';
 import { matrixAudio } from './core/utils/matrixAudio.js';
 
