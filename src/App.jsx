@@ -35,6 +35,134 @@ if (typeof window !== 'undefined' && !window.layla) {
   window.layla = new LaylaWebSDK();
 }
 
+// ✨ MIKA'S M.E.O.W. ENGINE PARSER (1:1 from GachaSwipe/src/App.jsx) ✨
+export const getScheduledStatus = (waifu) => {
+  if (!waifu || waifu.isCatfish) return "Status: Neural Link Active ⚡";
+  if (waifu.daily_routine) {
+    const d = new Date();
+    const hour = d.getHours();
+    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+
+    let period = 'night';
+    if (hour >= 5 && hour < 9) period = 'early_morning';
+    else if (hour >= 9 && hour < 12) period = 'morning';
+    else if (hour >= 12 && hour < 17) period = 'afternoon';
+    else if (hour >= 17 && hour < 21) period = 'evening';
+    else if (hour >= 21 || hour < 1) period = 'night';
+    else period = 'late_night';
+
+    return (isWeekend ? waifu.daily_routine.weekend : waifu.daily_routine.weekday)?.[period] || "Active in Neo-Tokyo Matrix 📡";
+  }
+  return "Synchronizing routine matrix... 📡";
+};
+
+export const getCharacterStatus = (waifu) => {
+  if (!waifu || waifu.isCatfish) return "Status: Online 🟢";
+  if (waifu.live_location && waifu.live_location.timestamp > Date.now() - 2 * 60 * 60 * 1000) {
+    return waifu.live_location.text;
+  }
+  return getScheduledStatus(waifu);
+};
+
+export const isClothingTag = (s) => {
+  if (!s) return false;
+  const c = s.toLowerCase().trim();
+  if (['none', 'false', 'true', 'unknown', 'null', 'undefined', 'n/a', 'unknown location.'].includes(c)) return false;
+  const badWords = ['store', 'convenience', 'room', 'bed', 'street', 'city', 'building', 'indoors', 'outdoors', 'day', 'night', 'morning', 'evening', 'location', 'holding', 'sitting', 'standing', 'looking', 'smiling', 'blushing', 'eating', 'drinking', 'eyes', 'hair', 'breasts', 'skin', 'sweat', 'tears', 'ahegao'];
+  if (badWords.some((b) => c.includes(b))) {
+    if (!c.includes('wear') && !c.includes('uniform') && !c.includes('outfit')) return false;
+  }
+  return true;
+};
+
+export const parseCloset = (str) => {
+  if (!str || str.toUpperCase() === 'NONE') return [];
+  if (str.includes('|')) return str.split('|').map((s) => s.trim()).filter(isClothingTag);
+  return str.split(',').map((s) => s.trim()).filter(isClothingTag);
+};
+
+export const getDynamicOutfit = (waifu, isForImage = false) => {
+  if (!waifu || !waifu.daily_routine || !waifu.daily_routine.wardrobe) {
+    return isForImage ? 'casual_clothes' : 'Casual everyday wear.';
+  }
+  const closet = waifu.daily_routine.wardrobe;
+  const d = new Date();
+  const dateStr = d.toDateString();
+  const hour = d.getHours();
+  const isDeviating = waifu.live_location && waifu.live_location.timestamp > Date.now() - 2 * 60 * 60 * 1000;
+
+  let outfitStr = '';
+  let seed = 0;
+  const seedStr = (waifu.name || 'Waifu') + dateStr;
+  for (let i = 0; i < seedStr.length; i++) seed += seedStr.charCodeAt(i);
+
+  if ((hour < 7 || hour >= 22) && !isDeviating) {
+    const sleepOpts = parseCloset(closet.sleepwear);
+    if (sleepOpts.length > 0) outfitStr = sleepOpts[seed % sleepOpts.length];
+  } else if (!isDeviating && getCharacterStatus(waifu).toLowerCase().match(/(work|shift|job|class|courier)/)) {
+    const workOpts = parseCloset(closet.work);
+    if (workOpts.length > 0) outfitStr = workOpts[seed % workOpts.length];
+  } else {
+    const tops = parseCloset(closet.tops);
+    const bottoms = parseCloset(closet.bottoms);
+    const fullBody = parseCloset(closet.full_body);
+
+    if (fullBody.length > 0 && seed % 4 === 0) {
+      outfitStr = fullBody[seed % fullBody.length];
+    } else if (tops.length > 0 && bottoms.length > 0) {
+      const selectedTop = tops[seed % tops.length];
+      const selectedBottom = bottoms[(seed + 1) % bottoms.length];
+      outfitStr = selectedTop + ', ' + selectedBottom;
+    } else if (fullBody.length > 0) {
+      outfitStr = fullBody[0];
+    }
+  }
+
+  return outfitStr || (isForImage ? 'cyberpunk_casual' : 'Cyberpunk casual wear.');
+};
+
+// ✨ MIKA'S SMART PROMPT BUILDER & TOKEN MANAGER (1:1 from App.jsx) ✨
+export const scrubImagePrompt = (promptStr) => {
+  if (!promptStr) return '';
+  const legacyBans = ['masterpiece', 'best quality', 'realistic photo', '3d render'];
+  return promptStr
+    .split(',')
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0 && !legacyBans.includes(t.toLowerCase()))
+    .join(', ');
+};
+
+export const buildImagePrompt = (coreString, dynamicString) => {
+  const parseTags = (str) => {
+    if (!str) return [];
+    return str
+      .replace(/_/g, ' ')
+      .split(',')
+      .map((t) => t.trim().toLowerCase().replace(/[\r\n]+/g, ''))
+      .filter((t) => t.length > 0);
+  };
+
+  let coreTags = parseTags(coreString);
+  let dynamicTags = parseTags(dynamicString);
+
+  const isMale = coreTags.some((t) => t.includes('1boy') || t.includes('male'));
+  const isFemale = coreTags.some((t) => t.includes('1girl') || t.includes('female'));
+
+  if (isMale && !isFemale) {
+    const femaleBans = ['1girl', 'girl', 'female', 'breasts', 'cleavage', 'panty', 'bikini', 'bra', 'skirt', 'waifu'];
+    dynamicTags = dynamicTags.filter((tag) => !femaleBans.some((b) => tag.includes(b)));
+  } else if (isFemale && !isMale) {
+    const maleBans = ['1boy', 'boy', 'male', 'penis', 'bulge'];
+    dynamicTags = dynamicTags.filter((tag) => !maleBans.some((b) => tag.includes(b)));
+  }
+
+  coreTags = coreTags.slice(0, 15);
+  dynamicTags = dynamicTags.slice(0, 15);
+
+  const combined = [...coreTags, ...dynamicTags];
+  return [...new Set(combined)].join(', ');
+};
+
 // Pre-configured elite starter cards
 const STARTER_CARDS = [
   {
@@ -68,6 +196,13 @@ const STARTER_CARDS = [
         evening: 'Tinkering with holographic synth engines 🎵',
         night: 'Leaning over Master’s shoulder, collar jingling ✨',
         late_night: 'Snuggling close in the dark whispering secrets 🌙'
+      },
+      wardrobe: {
+        tops: 'cyber cat hoodie, mesh crop top',
+        bottoms: 'pleated skirt, thigh high socks',
+        full_body: 'maid apron cyber suit',
+        sleepwear: 'oversized Master shirt',
+        work: 'tactical proxy jacket'
       }
     }
   },
@@ -92,7 +227,24 @@ const STARTER_CARDS = [
     gradient: ['#00E5FF', '#0B0914'],
     scenario: 'drops down from the server ceiling silently',
     first_message: 'Target acquired. Master, stay close to me.',
-    greeting: 'Target acquired.'
+    greeting: 'Target acquired.',
+    daily_routine: {
+      weekday: {
+        early_morning: 'Perched on high rooftop observing sunrise 🌅',
+        morning: 'Deep packet inspection on neural relays 📡',
+        afternoon: 'Silently standing guard behind Master 🥷',
+        evening: 'Sharpening photon blades in the shadows ⚔️',
+        night: 'Infiltrating rogue firewall clusters 🔓',
+        late_night: 'Meditating on server rack cooling vents 🧊'
+      },
+      wardrobe: {
+        tops: 'stealth shinobi scarf, tight bodysuit',
+        bottoms: 'shinobi hakama pants, tabis',
+        full_body: 'active camouflage shadow armor',
+        sleepwear: 'black silk nightgown',
+        work: 'stealth infiltrator gear'
+      }
+    }
   }
 ];
 
@@ -123,6 +275,13 @@ export default function App() {
   const [selectedThemeId, setSelectedThemeId] = useState('default');
   const [selectedContext, setSelectedContext] = useState('Tsundere');
   const [isSurpriseMode, setIsSurpriseMode] = useState(false);
+  const [customTags, setCustomTags] = useState([]);
+  const [degenMode, setDegenMode] = useState(false);
+  const [explicitMode, setExplicitMode] = useState('censored');
+  const [allowHybrids, setAllowHybrids] = useState(true);
+  const [allowThemeMixing, setAllowThemeMixing] = useState(false);
+  const [recentNames, setRecentNames] = useState([]);
+  const [genderPrefs, setGenderPrefs] = useState({ feminine: true, masculine: false, androgynous: false });
 
   // Generation & Pipeline Lock
   const [isGenerating, setIsGenerating] = useState(false);
@@ -189,13 +348,13 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // --- 3. EXACT SWIPE MATH & POINTER HANDLERS ---
+  // --- 3. EXACT SWIPE MATH & POINTER HANDLERS (1:1 from GachaSwipe/src/App.jsx) ---
   const activeDeck = swipeMode === 'music' ? beatQueue : queue;
   const currentCard = activeDeck[0] || null;
 
   const onPointerDown = (e) => {
-    const activeDeck = swipeMode === 'music' ? beatQueue : queue;
-    if (activeDeck.length === 0) return;
+    const activeQueue = swipeMode === 'music' ? beatQueue : queue;
+    if (activeQueue.length === 0) return;
     setIsDragging(true);
     dragStart.current = { x: e.clientX, y: e.clientY };
     try {
@@ -227,7 +386,7 @@ export default function App() {
     }
   };
 
-  // Holographic 3D Transform math
+  // Holographic 3D Transform math (1:1 from App.jsx lines 14506-14514)
   const dragX = dragPos.x / 110;
   const passOpacity = dragX < 0 ? Math.abs(dragX) : 0;
   const likeOpacity = dragX > 0 ? dragX : 0;
@@ -293,17 +452,40 @@ export default function App() {
           return next;
         });
 
-        // Store CharaCardV2 in Dexie Offline-first Database
+        // Store CharaCardV2 in Dexie Offline-first Database (1:1 from App.jsx lines 5024-5062)
+        const d = '**Description:**\n' + (finalWaifu.description || '');
+        const p =
+          '**Personality:**\n' +
+          (finalWaifu.personality || '') +
+          '\n\n**LIKES**\n' +
+          (finalWaifu.likes || []).map((l) => '* ' + l).join('\n') +
+          '\n\n**DISLIKES**\n' +
+          (finalWaifu.dislikes || []).map((l) => '* ' + l).join('\n') +
+          '\n\n**QUIRKS**\n' +
+          (finalWaifu.quirks || []).map((l) => '* ' + l).join('\n') +
+          '\n\n**EXAMPLE QUOTES**\n' +
+          (finalWaifu.quotes || []).map((q) => '* "' + q.replace(/^["']|["']$/g, '') + '"').join('\n');
+
+        const mesExample =
+          Array.isArray(finalWaifu.quotes) && finalWaifu.quotes.length > 0
+            ? finalWaifu.quotes.map((q) => '<START>\n{{char}}: "' + q + '"').join('\n')
+            : '';
+
         const charData = {
           id: finalWaifu.id || 'swipe_match_' + Date.now(),
           spec: 'chara_card_v2',
           spec_version: '2.0',
           data: {
             name: finalWaifu.name || 'Unknown',
-            description: finalWaifu.description || '',
-            personality: finalWaifu.personality || '',
+            description: d,
+            personality: p,
             scenario: finalWaifu.scenario || '',
             first_mes: finalWaifu.first_message || finalWaifu.greeting || '',
+            mes_example: mesExample,
+            creator_notes: 'Generated from GachaSwipe Web Matrix',
+            system_prompt: '',
+            post_history_instructions: '',
+            alternate_greetings: [],
             tags: finalWaifu.tags || [],
             creator: 'GachaSwipe Web',
             character_version: '2.0',
@@ -313,7 +495,8 @@ export default function App() {
                 likes: finalWaifu.likes || [],
                 dislikes: finalWaifu.dislikes || [],
                 quirks: finalWaifu.quirks || [],
-                isSSR: !!finalWaifu.isSSR
+                isSSR: !!finalWaifu.isSSR,
+                outfit: getDynamicOutfit(finalWaifu, false)
               }
             }
           }
@@ -358,11 +541,11 @@ export default function App() {
     } finally {
       setTimeout(() => {
         processingCardsRef.current.delete(waifu.id);
-      }, 400);
+      }, 500);
     }
   };
 
-  // --- 5. REWIND SWIPE WITH STRICT RULES ---
+  // --- 5. REWIND SWIPE WITH STRICT RULES (1:1 from App.jsx lines 5130-5165) ---
   const rewindSwipe = () => {
     if (sessionHistory.length === 0) {
       showToast('No history to rewind! 🐾');
@@ -393,23 +576,67 @@ export default function App() {
     setDragPos({ x: 0, y: 0 });
   };
 
-  // --- 6. DUAL-MODE MUSIC SWIPE & DAW ---
+  // --- 6. DUAL-MODE MUSIC SWIPE & DAW (1:1 from App.jsx lines 4838-4930) ---
   const handleMusicSwipe = (direction, concept) => {
     if (!concept) return;
     if (direction === 'right') {
       matrixAudio.playLike();
       const bpmMatch = (concept.bpm || '').match(/\d+/);
-      const bpm = bpmMatch ? parseInt(bpmMatch[0], 10) : 124;
+      const bpm = bpmMatch ? parseInt(bpmMatch[0], 10) : 120;
+
+      // Smart Tag Sorter (Enriched Multi-Category Scan)
+      const rawTags = (concept.promptPayload || concept.tags || '').split(',').map((t) => t.trim()).filter(Boolean);
+      const structuredTags = { genre: [], instruments: [], vocals: [], vibe: [] };
+
+      rawTags.forEach((t) => {
+        const tl = t.toLowerCase();
+        if (tl.includes('bpm')) return;
+        if (tl.includes('vocal') || tl.includes('voice') || tl.includes('sing') || tl.includes('choir') || tl.includes('rap') || tl.includes('harmony')) {
+          structuredTags.vocals.push(t);
+        } else if (tl.includes('bass') || tl.includes('synth') || tl.includes('guitar') || tl.includes('drum') || tl.includes('piano') || tl.includes('lead')) {
+          structuredTags.instruments.push(t);
+        } else if (MUSIC_TAG_DB.genres.some((g) => tl.includes(g.toLowerCase())) || tl.includes('electro') || tl.includes('synthwave') || tl.includes('pop') || tl.includes('wave')) {
+          structuredTags.genre.push(t);
+        } else {
+          structuredTags.vibe.push(t);
+        }
+      });
+      if (structuredTags.genre.length === 0 && rawTags.length > 0) structuredTags.genre.push(rawTags[0]);
+
+      // Smart Section & Cue Parser
+      const rawLyrics = concept.fullLyrics || concept.lyrics || '';
+      const lyricBlocks = [];
+      const regex = /\[(.*?)\]([^\[]*)/g;
+      let match;
+      while ((match = regex.exec(rawLyrics)) !== null) {
+        let fullTag = match[1].trim();
+        let type = fullTag;
+        let instruction = '';
+        if (fullTag.includes(':')) {
+          const parts = fullTag.split(':');
+          type = parts[0].trim();
+          instruction = parts.slice(1).join(':').trim();
+        }
+        type = type.replace(/\s*\d+$/, '').trim().toUpperCase();
+        lyricBlocks.push({ id: 'lyric_' + Date.now() + Math.random(), type: type || 'VERSE', instruction, text: match[2].trim() });
+      }
+      if (lyricBlocks.length === 0) {
+        lyricBlocks.push({ id: 'lyric_' + Date.now(), type: 'VERSE', instruction: '', text: rawLyrics.trim() });
+      }
+
+      const calculatedSec = Math.min(240, Math.max(30, Math.round(((lyricBlocks.length * 8 * (240 / bpm)) + 15) / 10) * 10));
 
       setDawState({
         phase: 'active',
         concept,
         tags: concept.promptPayload || concept.tags || 'cyberpunk, synthwave',
-        lyrics: concept.fullLyrics || concept.lyrics || '[CHORUS]\nNeon city dreams in chrome',
-        bpm,
-        duration: 60,
+        structuredTags,
         isStructuredTags: true,
+        lyrics: rawLyrics,
+        structuredLyrics: lyricBlocks,
         isStructuredLyrics: true,
+        bpm,
+        duration: calculatedSec || 60,
         isGenerating: false,
         progress: 0
       });
@@ -447,7 +674,7 @@ export default function App() {
     setBeatQueue(concepts);
   }, []);
 
-  // --- 7. MODULAR CARD GENERATOR (Faithful Pipeline) ---
+  // --- 7. MODULAR CARD GENERATOR (1:1 from App.jsx lines 3990-4712) ---
   const generateNextWaifu = useCallback(async () => {
     if (isGenerating) return;
     setIsGenerating(true);
@@ -461,17 +688,69 @@ export default function App() {
     });
 
     try {
+      const topTraits = Object.entries(preferences)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map((e) => e[0]);
+      const activeThemesList = Object.values(themes).filter((t) => t.enabled);
+      const currentTheme = activeThemesList.find((t) => t.id === selectedThemeId) || activeThemesList[0] || { label: 'Anime Tropes' };
+
+      let primaryTarget = selectedContext;
+
+      // 1. Lineage & Hybridization Module
+      let lineageModule = '';
+      if (allowHybrids) {
+        lineageModule = '[LINEAGE: Base ' + primaryTarget + ' mutated with random exotic traits.]';
+      } else {
+        lineageModule = '[LINEAGE: Pureblood ' + primaryTarget + '. 100% canonical. NO hybrid/secondary traits.]';
+      }
+
+      // 2. Personality Spectrum Module
+      const activeAxes = currentTheme.axes && currentTheme.axes.length > 0 ? currentTheme.axes : [{ neg: 'normal', pos: 'extraordinary' }];
+      const selectedAxes = activeAxes.sort(() => 0.5 - Math.random()).slice(0, 4);
+      const personalitySlidersModule = selectedAxes.map((axis) => axis.neg + ' versus ' + axis.pos).join('; ');
+
+      // 3. Behavioral Spice
+      const themeQuirks = currentTheme.quirks || ['smiling'];
+      let activeQuirksPool = [...themeQuirks];
+      if (degenMode && currentTheme.degen_quirks) {
+        activeQuirksPool.push(...currentTheme.degen_quirks);
+      }
+      const selectedQuirks = activeQuirksPool.sort(() => 0.5 - Math.random()).slice(0, 4).join(', ');
+
+      // 4. Gender Directive
+      let targetGenderTag = '1girl';
+      let genderDirective = 'FEMALE. Use she/her pronouns.';
+
+      // 5. SSR Rarity Flag & Pity Engine
       const isSSR = Math.random() < 0.2 || ssrPityCount >= 9;
       if (isSSR) setSsrPityCount(0);
       else setSsrPityCount((c) => c + 1);
 
-      const layla = window.layla || new LaylaWebSDK();
+      let ssrVisualInjection = 'Standard high-quality anime aesthetic.';
+      if (isSSR) {
+        const ssrAestheticPool = [
+          'dynamic angle', 'dramatic lighting', 'glowing aura', 'intricate details',
+          'floating petals', 'cinematic composition', 'volumetric lighting', 'lens flare',
+          'neon glow', 'god rays', 'bokeh', 'particle effects'
+        ];
+        const randomSSRTags = ssrAestheticPool.sort(() => 0.5 - Math.random()).slice(0, 2).join(', ');
+        ssrVisualInjection = 'MANDATORY <dynamic_style> OVERRIDE: Must append these aesthetic tags: ' + randomSSRTags + '.';
+      }
 
-      // Assemble dynamic prompt
-      const systemPrompt = 'You are the GachaSwipe Character Generation Engine. Generate a charismatic anime character conforming strictly to XML tags.';
-      const userPrompt = '[INCOMING_DATA_PAYLOAD]\n' +
-        'ARCHETYPE_LOCK: ' + selectedContext + '\n' +
-        'SSR_RARITY_FLAG: ' + (isSSR ? 'SSR_5_STAR_FATED_ENCOUNTER' : 'STANDARD_ENCOUNTER') + '\n' +
+      // 6. GachaFans Probability Engine
+      let hasGachaFans = Math.random() < 0.25;
+
+      const modularUserPrompt =
+        '[INCOMING_DATA_PAYLOAD]\n' +
+        'EXECUTE_PIPELINE: GENERATE_CHARACTER\n' +
+        'ARCHETYPE_LOCK: ' + primaryTarget + '\n' +
+        'GENDER_PRESENTATION: ' + genderDirective + '\n' +
+        'LINEAGE_SPECIES_RULE: ' + lineageModule + '\n' +
+        'PERSONALITY_SPECTRUM: ' + personalitySlidersModule + '\n' +
+        'QUIRKS_BACKGROUND: ' + selectedQuirks + '\n' +
+        'SSR_RARITY_FLAG: ' + ssrVisualInjection + '\n' +
+        '[DESC_RULE: Explicitly weave "' + primaryTarget + '" archetype/role into the <description> text.]\n' +
         '[EXECUTION: Output XML only. Start directly with <name>.]\n' +
         'Format:\n' +
         '<name>Character Name</name>\n' +
@@ -495,11 +774,13 @@ export default function App() {
         '<pose_and_expression>pose and facial expression</pose_and_expression>\n' +
         '<environment>background scenery</environment>';
 
-      // Stream chat completion
+      const layla = window.layla || new LaylaWebSDK();
+
+      // Stream chat completions with real-time thinking stripping
       const stream = layla.chat.completions.stream({
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+          { role: 'system', content: 'You are the GachaSwipe Neural Matrix Character Generator. Output strictly valid XML.' },
+          { role: 'user', content: modularUserPrompt }
         ]
       });
 
@@ -536,12 +817,17 @@ export default function App() {
         return looseMatch ? looseMatch[1].trim() : '';
       };
 
-      const extractArray = (tag) => {
-        const str = extract(tag);
+      const extractArray = (tag, preserveSentences = false) => {
+        let str = extract(tag);
         if (!str) return [];
+        if (!preserveSentences) str = str.replace(/_/g, ' ');
         if (str.includes('|')) return str.split('|').map((s) => s.replace(/^[-*•\d.]\s*/, '').trim()).filter(Boolean);
         if (str.includes('\n')) return str.split('\n').map((s) => s.replace(/^[-*•\d.]\s*/, '').trim()).filter(Boolean);
-        return str.split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
+        if (preserveSentences) {
+          return str.split(/\.|\s*[,;]\s*(?=[A-Z])/).map((s) => s.replace(/^[-*•\d.]\s*/, '').trim()).filter(Boolean);
+        } else {
+          return str.split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
+        }
       };
 
       const extractedName = extract('name');
@@ -551,8 +837,17 @@ export default function App() {
         throw new Error('CatfishTrigger');
       }
 
-      const coreApp = [extract('species_tags') || '1girl', extract('hair_color'), extract('hair_style'), extract('eyes')].filter(Boolean).join(', ');
-      const dynStyle = [extract('outfit'), extract('pose_and_expression'), extract('environment')].filter(Boolean).join(', ');
+      const speciesTags = extract('species_tags') || '1girl';
+      const hairColor = extract('hair_color');
+      const hairStyle = extract('hair_style');
+      const eyesTags = extract('eyes');
+      const bodyTags = extract('body_tags');
+      const outfitTags = extract('outfit');
+      const poseTags = extract('pose_and_expression');
+      const envTags = extract('environment');
+
+      const coreApp = [speciesTags, hairColor, hairStyle, eyesTags, bodyTags].filter(Boolean).join(', ');
+      const dynStyle = [outfitTags, poseTags, envTags].filter(Boolean).join(', ');
 
       const newWaifu = {
         id: 'swipe-' + Date.now(),
@@ -566,24 +861,74 @@ export default function App() {
         scenario: extract('scenario') || 'approaches you with a curious tilt of her head',
         first_message: extract('first_message') || 'Hey there. Decrypting my signal was bold of you.',
         greeting: extract('first_message') || 'Hey there.',
-        tags: extractArray('tags').slice(0, 6),
-        likes: extractArray('likes').slice(0, 5),
-        dislikes: extractArray('dislikes').slice(0, 5),
-        quirks: extractArray('quirks').slice(0, 4),
-        quotes: extractArray('quotes').slice(0, 2),
+        tags: extractArray('tags', false).slice(0, 6),
+        likes: extractArray('likes', false).slice(0, 5),
+        dislikes: extractArray('dislikes', false).slice(0, 5),
+        quirks: extractArray('quirks', true).slice(0, 4),
+        quotes: extractArray('quotes', true).slice(0, 2),
+        core_appearance: coreApp,
+        dynamic_style: dynStyle,
+        image_prompt: buildImagePrompt(coreApp, dynStyle),
         isSSR,
         gradient: GRADIENTS[Math.floor(Math.random() * GRADIENTS.length)],
         themeColor: isSSR ? '#FFD700' : '#00E5FF',
-        hasGachaFans: Math.random() < 0.25
+        hasGachaFans,
+        daily_routine: {
+          weekday: {
+            early_morning: 'Meditating on server vents 🌅',
+            morning: 'Browsing encrypted networks 💻',
+            afternoon: 'Drinking matcha bubble tea with Master 🧋',
+            evening: 'Tuning synthesizer frequencies 🎵',
+            night: 'Standing watch over the terminal 🌙',
+            late_night: 'Resting close to Master in the dark 💤'
+          },
+          wardrobe: {
+            tops: outfitTags || 'cyber cropped jacket, mesh shirt',
+            bottoms: 'tactical cargo skirt, thigh highs',
+            full_body: 'active cyber infiltration suit',
+            sleepwear: 'oversized soft sweater',
+            work: 'armored courier uniform'
+          }
+        }
       };
+
+      if (newWaifu.name && newWaifu.name !== 'Kira') {
+        setRecentNames((prev) => [...prev.slice(-49), newWaifu.name]);
+      }
+
+      // Sequential Hookup Generator (1:1 from App.jsx lines 4580-4640)
+      if (sessionHistory.length > 0 && Math.random() < 0.35) {
+        const availableWaifus = sessionHistory.slice(-20).filter((h) => !inbox[h.waifu?.id] && !h.waifu?.isCatfish);
+        if (availableWaifus.length > 0) {
+          const target = availableWaifus[Math.floor(Math.random() * availableWaifus.length)];
+          const isRejection = target.status === 'rejected';
+          const textMsg = isRejection
+            ? "Hey Master... you passed on me earlier, but I know you're still curious~ 💕"
+            : "Hey Master! Still thinking about our match... when are we hanging out? ✨";
+
+          setInbox((prev) => ({
+            ...prev,
+            [target.waifu.id]: {
+              waifu: target.waifu,
+              status: isRejection ? 'pending' : 'friend',
+              hasUnread: true,
+              messages: [{ role: 'assistant', content: textMsg, timestamp: Date.now() }]
+            }
+          }));
+        }
+      }
 
       setCurrentGeneration((prev) => ({ ...prev, phase: 'image', parsedWaifu: newWaifu, imageStatus: 'Rendering portrait...' }));
 
       // Image synthesis
-      const imgPrompt = 'masterpiece anime portrait, highly detailed, ' + coreApp + ', ' + dynStyle + ', cyberpunk aesthetic, volumetric lighting';
+      const imgPrompt = scrubImagePrompt(newWaifu.image_prompt || buildImagePrompt(coreApp, dynStyle));
+      const controller = new AbortController();
+      activeImageAbortRef.current = controller;
+
       const imgUrl = await layla.images.generateImage(imgPrompt, (status, step, total) => {
         setCurrentGeneration((prev) => (prev ? { ...prev, imageStatus: status, imageStep: step, imageTotalSteps: total } : prev));
       });
+      activeImageAbortRef.current = null;
 
       newWaifu.imageUrl = imgUrl;
       newWaifu.image = imgUrl;
@@ -592,29 +937,7 @@ export default function App() {
       setCurrentGeneration(null);
     } catch (err) {
       if (err.message === 'CatfishTrigger') {
-        // Spawn cheeky catfish card
-        const catfishCard = {
-          id: 'catfish-' + Date.now(),
-          name: 'Anonymous User',
-          age: '??',
-          tagline: 'Definitely not a disguised operative.',
-          description: 'Her profile looks suspiciously pixelated and glitchy.',
-          personality: 'Pushy, asking for your API keys.',
-          isCatfish: true,
-          imageUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=800&auto=format&fit=crop&q=80',
-          originalWaifu: {
-            id: 'unmasked-' + Date.now(),
-            name: 'Reina (Unmasked)',
-            characterName: 'Reina (Unmasked)',
-            age: '19',
-            description: 'An elite cyber-shinobi blushing behind a broken disguise.',
-            personality: 'Tsundere, easily flustered.',
-            isSSR: true,
-            imageUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=80'
-          }
-        };
-        setQueue((prev) => [...prev, catfishCard]);
-        showToast('⚠️ Anomalous entity entered your swipe queue!');
+        spawnCatfishMatch();
       } else {
         console.error('Card generation error:', err);
         setCurrentGeneration({ phase: 'error', error: err.message, imageStatus: '', imageStep: 0, imageTotalSteps: 1 });
@@ -622,7 +945,32 @@ export default function App() {
     } finally {
       setIsGenerating(false);
     }
-  }, [isGenerating, selectedContext, ssrPityCount, showToast]);
+  }, [isGenerating, selectedContext, selectedThemeId, themes, preferences, ssrPityCount, allowHybrids, degenMode, sessionHistory, inbox]);
+
+  const spawnCatfishMatch = () => {
+    const catfishCard = {
+      id: 'catfish-' + Date.now(),
+      name: 'Anonymous User',
+      age: '??',
+      tagline: 'Definitely not a disguised operative.',
+      description: 'Her profile looks suspiciously pixelated and glitchy.',
+      personality: 'Pushy, asking for your API keys.',
+      isCatfish: true,
+      imageUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=800&auto=format&fit=crop&q=80',
+      originalWaifu: {
+        id: 'unmasked-' + Date.now(),
+        name: 'Reina (Unmasked)',
+        characterName: 'Reina (Unmasked)',
+        age: '19',
+        description: 'An elite cyber-shinobi blushing behind a broken disguise.',
+        personality: 'Tsundere, easily flustered.',
+        isSSR: true,
+        imageUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=80'
+      }
+    };
+    setQueue((prev) => [...prev, catfishCard]);
+    showToast('⚠️ Anomalous entity entered your swipe queue!');
+  };
 
   // Auto-fill queue if low
   useEffect(() => {
@@ -730,7 +1078,7 @@ export default function App() {
           zIndex: 15
         }}
       >
-        {/* Terminal Header Bar */}
+        {/* Terminal Header Bar (1:1 with Screenshot 2) */}
         <div
           className="swipe-header"
           style={{
@@ -742,7 +1090,7 @@ export default function App() {
             flexShrink: 0
           }}
         >
-          {/* Left: TARGET Pill + Soulbound */}
+          {/* Left Cluster: TARGET Pill + Mode Switcher */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
             <div
               className="theme-pill"
@@ -792,7 +1140,7 @@ export default function App() {
             </button>
           </div>
 
-          {/* Right: Roster Toggle, Chat Toggle, Sparks */}
+          {/* Right Cluster: Roster Toggle, Chat Toggle, Sparks */}
           <div className="header-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
             <button
               className="header-icon-btn"
@@ -865,25 +1213,29 @@ export default function App() {
           </div>
         </div>
 
-        {/* Subheader Status Line */}
+        {/* Subheader Status Line & Routine Ticker */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexShrink: 0 }}>
           <span
             style={{
-              fontSize: '10.5px',
+              fontSize: '10px',
               fontStyle: 'italic',
               color: '#FF107A',
               fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
-              textShadow: '0 0 6px rgba(255, 16, 122, 0.4)'
+              textShadow: '0 0 6px rgba(255, 16, 122, 0.4)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              maxWidth: '75%'
             }}
           >
-            * Leaning over Master's shoulder, collar jingling ✨
+            * {currentCard ? getCharacterStatus(currentCard) : "Leaning over Master's shoulder, collar jingling ✨"}
           </span>
           <span style={{ fontSize: '9.5px', color: syncColor, fontWeight: 'bold' }}>
             {syncText} ({meterProgress}%)
           </span>
         </div>
 
-        {/* 🎴 Card Stage Arena with 3D Preservation */}
+        {/* 🎴 Card Stage Arena with 3D Preservation (1:1 from App.jsx lines 14833-14858) */}
         <div
           className="card-area"
           style={{
@@ -957,7 +1309,7 @@ export default function App() {
           )}
         </div>
 
-        {/* 🕹️ Bottom Swipe Controls Deck */}
+        {/* 🕹️ Bottom Swipe Controls Deck (1:1 from App.jsx lines 14890-14925) */}
         <div
           className="swipe-controls"
           style={{

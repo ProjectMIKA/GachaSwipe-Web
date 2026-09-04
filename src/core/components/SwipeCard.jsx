@@ -4,37 +4,6 @@ import * as Constants from '../data/constants.js';
 import { CameraIcon, LockIcon, XIcon } from './Icons.jsx';
 import { TagPill, DetailsList } from './SharedUI.jsx';
 import { AtmosphereEngine } from './AtmosphereEngine.jsx';
-import { matrixAudio } from '../utils/matrixAudio.js';
-
-
-// ✨ MIKA'S M.E.O.W. ENGINE ROUTINE PARSER ✨
-const getScheduledStatus = (waifu) => {
-    if (!waifu || waifu.isCatfish) return "Status: Neural Link Active ⚡";
-    if (waifu.daily_routine) {
-        const d = new Date();
-        const hour = d.getHours();
-        const isWeekend = (d.getDay() === 0 || d.getDay() === 6);
-
-        let period = 'night';
-        if (hour >= 5 && hour < 9) period = 'early_morning';
-        else if (hour >= 9 && hour < 12) period = 'morning';
-        else if (hour >= 12 && hour < 17) period = 'afternoon';
-        else if (hour >= 17 && hour < 21) period = 'evening';
-        else if (hour >= 21 || hour < 1) period = 'night';
-        else period = 'late_night';
-
-        return (isWeekend ? waifu.daily_routine.weekend : waifu.daily_routine.weekday)?.[period] || "Active in Neo-Tokyo Matrix 📡";
-    }
-    return "Synchronizing routine matrix... 📡";
-};
-
-const getCharacterStatus = (waifu) => {
-    if (!waifu) return "Status: Online 🟢";
-    if (waifu.live_location && waifu.live_location.timestamp > Date.now() - (2 * 60 * 60 * 1000)) {
-        return waifu.live_location.text;
-    }
-    return getScheduledStatus(waifu);
-};
 
 export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity, passOpacity, onPointerDown, onPointerMove, onPointerUp, onRegenImage, enableAtmosphere, onOpenGachaFans, onShareProfile, onOpenMatrix }) => {
     const [showDetails, setShowDetails] = useState(false);
@@ -43,7 +12,7 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
     
     // ✨ MIKA'S AUTOMATED DRAMA ENGINE ✨
     // Phases: 'hyping' -> 'hype_fade' -> 'cinematic'/'intro_pan' -> 'revealed'
-    const [revealPhase, setRevealPhase] = useState('revealed'); // Skip buffer for pause cards!
+    const [revealPhase, setRevealPhase] = useState(waifu.id === 'intro' ? 'revealed' : 'hyping'); // Skip buffer for pause cards!
     const [isFaded, setIsFaded] = useState(false);
     const fadeTimerRef = useRef(null);
     const stopPropagation = e => e.stopPropagation();
@@ -424,8 +393,8 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
                             </div>
                         </div>
                     </div>
-                ) : (waifu.imageUrl || waifu.image) ? (
-                    <img src={waifu.imageUrl || waifu.image} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = Constants.DEFAULT_PROXY.imageUrl; }} alt="" style={{ 
+                ) : waifu.imageUrl ? (
+                    <img src={waifu.imageUrl} alt="" style={{ 
                         position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', 
                         /* MIKA'S DYNAMIC CAMERA VARIABLES */
                         '--p1s': cameraSettings.p1s, '--p1e': cameraSettings.p1e,
@@ -450,7 +419,7 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
                 {/* ✨ MIKA'S ADAPTIVE ATMOSPHERE ENGINE ✨ */}
                 {enableAtmosphere && <AtmosphereEngine waifu={waifu} revealPhase={revealPhase} />}
                 
-                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.25) 38%, rgba(0,0,0,0) 66%)', pointerEvents: 'none', opacity: (revealPhase !== 'revealed') ? 0 : 1, transition: 'opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 3 }}></div>
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.25) 38%, rgba(0,0,0,0) 66%)', pointerEvents: 'none', opacity: (isFaded || revealPhase !== 'revealed') ? 0 : 1, transition: 'opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 3 }}></div>
                 <div style={{ position: 'absolute', inset: 0, boxShadow: 'inset 0 0 40px rgba(0,0,0,0.6), inset 0 0 10px rgba(255,255,255,0.15)', pointerEvents: 'none', zIndex: 1 }}></div>
             </div>
             
@@ -479,27 +448,14 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             <div style={{ 
                 position: 'absolute', left: 20, right: 20, bottom: 20, color: '#fff', 
                 display: 'flex', flexDirection: 'column', gap: 11, transform: 'translateZ(30px)', 
-                opacity: (revealPhase !== 'revealed') ? 0 : 1, 
+                opacity: (isFaded || revealPhase !== 'revealed') ? 0 : 1, 
                 pointerEvents: (isFaded || revealPhase !== 'revealed') ? 'none' : 'auto', 
                 transition: 'opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1)' 
             }}>
                 {!(waifu.isMusicConcept || (window.mikaSwipeMode === 'music' && waifu.id === 'loading')) && (
                     <React.Fragment>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                            <span style={{ 
-                                fontSize: 10, fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", 
-                                letterSpacing: '0.04em', fontWeight: 700, 
-                                color: '#00FF41', background: 'rgba(0, 255, 65, 0.12)', 
-                                border: '1px solid rgba(0, 255, 65, 0.3)', borderRadius: 4, 
-                                padding: '2px 7px', display: 'inline-flex', alignItems: 'center', gap: 5,
-                                textShadow: '0 0 6px rgba(0,255,65,0.4)' 
-                            }}>
-                                <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#00FF41', boxShadow: '0 0 6px #00FF41', animation: 'csd-pulse 1.5s infinite' }}></span>
-                                {getCharacterStatus(waifu)}
-                            </span>
-                        </div>
                         <h2 style={{ fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: 32, lineHeight: 1, margin: 0, fontWeight: 800, letterSpacing: '0.05em', color: '#C8E8F0', textShadow: '0 2px 4px rgba(0,0,0,0.95), 0 0 12px rgba(0,229,255,0.6)' }}>
-                            &gt; {(waifu.name || 'COMPANION').toUpperCase()}
+                            &gt; {waifu.name.toUpperCase()}
                         </h2>
                         <p className="csd-clamp2" style={{ margin: 0, fontSize: 13, lineHeight: 1.45, color: 'rgba(255,255,255,0.8)', textShadow: '0 1px 4px #000', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", borderLeft: '2px solid var(--accent)', paddingLeft: '8px', background: 'linear-gradient(90deg, rgba(255,16,122,0.1) 0%, transparent 100%)' }}>
                             {waifu.tagline ? '"' + waifu.tagline.replace(/^["']+|["']+$/g, '').trim() + '"' : waifu.description}
@@ -511,20 +467,13 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
                                 </span>
                             )}
                             {waifu.hasGachaFans && (
-                                <span 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (onOpenGachaFans) onOpenGachaFans(waifu);
-                                    }}
-                                    style={{ fontSize: 10, fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 900, color: '#000', border: '1px solid #00E5FF', background: '#00E5FF', backdropFilter: 'blur(4px)', borderRadius: 4, padding: '4px 8px', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 0 10px rgba(0,229,255,0.5)', cursor: 'pointer' }}
-                                    title="Open GachaFans VIP Portal"
-                                >
+                                <span style={{ fontSize: 10, fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 900, color: '#000', border: '1px solid #00E5FF', background: '#00E5FF', backdropFilter: 'blur(4px)', borderRadius: 4, padding: '4px 8px', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 0 10px rgba(0,229,255,0.5)' }}>
                                     <LockIcon size={11} /> GACHAFANS
                                 </span>
                             )}
                             {waifu.tags?.map((tag, i) => <TagPill key={i} label={tag} onDark={true} />)}
                         </div>
-                        <button onPointerDown={stopPropagation} onClick={() => { matrixAudio.playDecrypt(); setShowDetails(true); }} style={{ marginTop: 2, alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 7, border: '1px solid rgba(0, 229, 255, 0.4)', background: 'rgba(0, 229, 255, 0.1)', backdropFilter: 'blur(4px)', color: '#00E5FF', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', padding: '8px 14px', borderRadius: 4, cursor: 'pointer', textShadow: '0 0 6px rgba(0,229,255,0.4)', boxShadow: '0 0 10px rgba(0,229,255,0.1)' }}>
+                        <button onPointerDown={stopPropagation} onClick={() => setShowDetails(true)} style={{ marginTop: 2, alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 7, border: '1px solid rgba(0, 229, 255, 0.4)', background: 'rgba(0, 229, 255, 0.1)', backdropFilter: 'blur(4px)', color: '#00E5FF', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', padding: '8px 14px', borderRadius: 4, cursor: 'pointer', textShadow: '0 0 6px rgba(0,229,255,0.4)', boxShadow: '0 0 10px rgba(0,229,255,0.1)' }}>
                             &gt; DECRYPT_PROFILE
                         </button>
                     </React.Fragment>
@@ -541,7 +490,7 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
                     <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(0,229,255,0.4)', alignSelf: 'center', flexShrink: 0, boxShadow: '0 0 10px rgba(0,229,255,0.6)', position: 'relative', zIndex: 1 }}></div>
                     
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, borderBottom: '1px dashed rgba(0,229,255,0.3)', paddingBottom: '10px', position: 'relative', zIndex: 1 }}>
-                        <h3 style={{ fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", margin: 0, fontSize: 16, fontWeight: 800, color: '#00E5FF', letterSpacing: '0.05em', textShadow: '0 0 8px rgba(0,229,255,0.4)' }}>&gt; {(waifu.name || 'COMPANION').toUpperCase()}_DATA</h3>
+                        <h3 style={{ fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", margin: 0, fontSize: 16, fontWeight: 800, color: '#00E5FF', letterSpacing: '0.05em', textShadow: '0 0 8px rgba(0,229,255,0.4)' }}>&gt; {waifu.name.toUpperCase()}_DATA</h3>
                         
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <button 
@@ -599,12 +548,6 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
                     </div>
                     
                     <div className="stat-page-content" onPointerDown={e => e.stopPropagation()} style={{ paddingRight: '8px', position: 'relative', zIndex: 1 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start', marginBottom: '12px' }}>
-                            <span style={{ fontSize: 10, fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#00FF41' }}>&gt; M.E.O.W._ROUTINE_GPS</span>
-                            <div style={{ fontSize: 11, fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", color: '#EBE3D6', background: 'rgba(0, 255, 65, 0.05)', borderRadius: 4, padding: '10px 14px', lineHeight: 1.4, borderLeft: '2px solid #00FF41', border: '1px solid rgba(0, 255, 65, 0.2)', width: '100%', boxSizing: 'border-box' }}>
-                                <span style={{ color: '#00FF41', fontWeight: 'bold' }}>📍 CURRENT STATUS:</span> {getCharacterStatus(waifu)}
-                            </div>
-                        </div>
                         <DetailsList label="Into" items={waifu.likes || waifu.tags} tone="like" />
                         <DetailsList label="Not into" items={waifu.dislikes || ['Boring people']} tone="dislike" />
                         {waifu.quirks && waifu.quirks.length > 0 && <DetailsList label="Quirks" items={waifu.quirks} tone="like" isBlock={true} />}
