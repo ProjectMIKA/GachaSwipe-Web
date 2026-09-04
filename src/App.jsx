@@ -1,18 +1,39 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useCards, saveCard, deleteCard, useCardCount, getApiKey } from './web/db.js';
+import { useCards, saveCard, deleteCard, useCardCount, getApiKey, useTapes, saveTape } from './web/db.js';
 import { generateCharacterPersona, generateCharacterImage, NanoGPTError } from './web/aiClient.js';
+import { LaylaWebSDK } from './web/laylaWebAdapter.js';
 import { CloudVault } from './web/CloudVault.jsx';
 import { CyberMessenger } from './web/CyberMessenger.jsx';
+import { CyberGroupChat } from './web/CyberGroupChat.jsx';
 import { GachaFansModal } from './web/GachaFansModal.jsx';
 import { SettingsModal } from './web/SettingsModal.jsx';
 import { RosterPanel } from './web/RosterPanel.jsx';
 import { ThemeModal } from './web/ThemeModal.jsx';
 import { SwipeCard } from './core/components/SwipeCard.jsx';
+import { LoadingCard } from './core/components/LoadingCard.jsx';
 import { TerminalToast } from './core/components/TerminalToast.jsx';
 import { MatrixShooter } from './core/components/MatrixShooter.jsx';
-import { HeartIcon, XIcon, RewindIcon, SparkIcon, LockIcon, UserIcon, MusicIcon } from './core/components/Icons.jsx';
-import { DEFAULT_PROXY } from './core/data/constants.js';
+import { GlobalMusicPlayer } from './core/components/GlobalMusicPlayer.jsx';
+import { ChimeraEngine } from './core/components/ChimeraEngine.jsx';
+import {
+  HeartIcon,
+  XIcon,
+  RewindIcon,
+  SparkIcon,
+  LockIcon,
+  UserIcon,
+  MusicIcon,
+  PlayIcon,
+  PauseIcon
+} from './core/components/Icons.jsx';
+import { DEFAULT_PROXY, DEFAULT_THEMES, MUSIC_TAG_DB, GRADIENTS } from './core/data/constants.js';
 import { matrixAudio } from './core/utils/matrixAudio.js';
+
+// Ensure Web Layla SDK is globally initialized
+if (typeof window !== 'undefined' && !window.layla) {
+  window.LaylaSDK = LaylaWebSDK;
+  window.layla = new LaylaWebSDK();
+}
 
 // Pre-configured elite starter cards
 const STARTER_CARDS = [
@@ -38,6 +59,7 @@ const STARTER_CARDS = [
     scenario: 'leans over your keyboard with a teasing smile',
     first_message: 'Nyaa~ Master! Let us make something amazing together!',
     greeting: 'Nyaa~ Master!',
+    hasGachaFans: true,
     daily_routine: {
       weekday: {
         early_morning: 'Curled on Master’s pillow purring 🐾',
@@ -46,18 +68,8 @@ const STARTER_CARDS = [
         evening: 'Tinkering with holographic synth engines 🎵',
         night: 'Leaning over Master’s shoulder, collar jingling ✨',
         late_night: 'Snuggling close in the dark whispering secrets 🌙'
-      },
-      weekend: {
-        early_morning: 'Sleeping in late under Master’s jacket 😴',
-        morning: 'Serving breakfast bento with heart ketchup 🍱',
-        afternoon: 'Shopping for cute bell collars in Akihabara 🛍️',
-        evening: 'Gaming in the matrix arcade 🎮',
-        night: 'Dancing to breakcore on the neon balcony 🎶',
-        late_night: 'Recharging neural link in Master’s arms 💤'
       }
-    },
-    hasGachaFans: true,
-    metadata: { rarity: 'SSR', theme: 'Cyberpunk', hasGachaFans: true }
+    }
   },
   {
     id: 'kuro-synth',
@@ -80,1128 +92,903 @@ const STARTER_CARDS = [
     gradient: ['#00E5FF', '#0B0914'],
     scenario: 'drops down from the server ceiling silently',
     first_message: 'Target acquired. Master, stay close to me.',
-    greeting: 'Target acquired.',
-    daily_routine: {
-      weekday: {
-        early_morning: 'Perched on high rooftop observing sunrise 🌅',
-        morning: 'Deep packet inspection on neural relays 📡',
-        afternoon: 'Silently standing guard behind Master 🥷',
-        evening: 'Sharpening photon blades in the shadows ⚔️',
-        night: 'Infiltrating rogue firewall clusters 🔓',
-        late_night: 'Meditating on server rack cooling vents 🧊'
-      },
-      weekend: {
-        early_morning: 'Stealth training in mist gardens 🎋',
-        morning: 'Quiet tea ceremony with Master 🍵',
-        afternoon: 'Acquiring encrypted scrolls in underground bazaar 📜',
-        evening: 'Silent patrol through rainy alleys 🌧️',
-        night: 'Resting head against Master’s arm quietly 🖤',
-        late_night: 'Active night watch over Master’s terminal 👁️'
-      }
-    },
-    hasGachaFans: false,
-    metadata: { rarity: 'SR', theme: 'Neon Alley', hasGachaFans: false }
-  },
-  {
-    id: 'lyra-dj',
-    uuid: '00000000-0000-0000-0000-000000000003',
-    name: 'Lyra Soundwave',
-    characterName: 'Lyra Soundwave',
-    age: '21',
-    personality: 'Upbeat Gyaru, Bass Addict, Shamelessly Affectionate',
-    archetype: 'Synthesizer Diva',
-    description: 'Resonant sound architect spinning holographic vinyls in the neon underground.',
-    tagline: 'Dropping heavy breakcore beats into your audio matrix.',
-    quirks: ['Blasts breakcore at 3 AM', 'Customizes cassette tape heads'],
-    likes: ['Breakcore', 'Synthesizers', 'Energy Drinks'],
-    dislikes: ['Silence', 'Unmastered Tracks'],
-    imageUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800&auto=format&fit=crop&q=80',
-    image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800&auto=format&fit=crop&q=80',
-    tags: ['GYARU', 'DIVA', 'CHIMERA_SOUND'],
-    isSSR: false,
-    themeColor: '#FFB36B',
-    gradient: ['#FFB36B', '#F2553D'],
-    scenario: 'spins a neon vinyl on her holographic deck',
-    first_message: 'Yo Master! Let us turn the volume all the way up!',
-    greeting: 'Yo Master!',
-    daily_routine: {
-      weekday: {
-        early_morning: 'Sleeping in headphones with synth pads running 🎧',
-        morning: 'Sampling vinyl drops and adjusting EQ levels 🎛️',
-        afternoon: 'Blasting cyber rave playlists for Master 🔊',
-        evening: 'DJ headline set at Club Neo-Eden 🪩',
-        night: 'Eating midnight street noodles with Master 🍜',
-        late_night: 'Composing underground cassette tracks 📼'
-      },
-      weekend: {
-        early_morning: 'Humming new melodies half-asleep 🎶',
-        morning: 'Hunting vintage synths in secondhand tech shops 🎹',
-        afternoon: 'Karaoke marathon singing duets with Master 🎤',
-        evening: 'Underground rave in subway depot ⚡',
-        night: 'Dancing under strobe lights 💃',
-        late_night: 'Sharing headphones with Master on the train 🚃'
-      }
-    },
-    hasGachaFans: true,
-    metadata: { rarity: 'R', theme: 'Vaporwave', hasGachaFans: true }
+    greeting: 'Target acquired.'
   }
 ];
 
-
-const PAUSE_CARD = {
-  id: 'intro',
-  name: 'Engine Paused',
-  characterName: 'Engine Paused',
-  age: '⏸',
-  gradient: ['#171226', '#00E5FF'],
-  description: 'Generation is holding. Check your messages, tweak your settings, and swipe when ready!',
-  personality: 'System proxy.',
-  tags: ['Holding', 'Swipe', 'To Resume'],
-  likes: ['Clean Code', 'Neural Links'],
-  dislikes: ['Data Corruption'],
-  quirks: ['Holding memory buffer'],
-  imageUrl: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzBCMDkxNCIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjMwIiBmaWxsPSJub25lIiBzdHJva2U9IiMwMEU1RkYiIHN0cm9rZS13aWR0aD0iNCIvPjxwYXRoIGQ9Ik0zOCwzNSBoOCB2MzAgaC04IHogTTU0LDM1IGg4IHYzMCBoLTggeiIgZmlsbD0iIzAwRTVGRiIvPjwvc3ZnPg==",
-  greeting: 'Ready when you are, Master!'
-};
-
-const PRESET_TRAITS = ['Catgirl', 'Tsundere', 'Yandere', 'Cyberpunk', 'Kuudere', 'Goddess', 'Maid', 'Smug'];
-const CYBER_WARDROBES = ['Techwear Hoodie', 'Cyber Kimono', 'Pilot Bodysuit', 'Maid Uniform', 'Tactical Armor', 'Bunny Suit'];
-const CYBER_GEAR = ['Laser Katana', 'Neural Cyberdeck', 'Drone Companion', 'Plasma Rifle', 'Holo-Visor'];
-
-// ✨ Floating JRPG Speech Bubble ✨
-const JrpgSpeechBubble = ({ text, pColor = '#FF107A' }) => {
-  if (!text) return null;
-  return (
-    <div style={{
-      position: 'absolute', bottom: 'calc(100% + 10px)', left: '50%',
-      transform: 'translateX(-50%)', width: 'max-content', maxWidth: '280px',
-      zIndex: 120, pointerEvents: 'none', transition: 'all 0.3s ease'
-    }}>
-      <div style={{
-        background: 'rgba(5, 3, 8, 0.88)', backdropFilter: 'blur(12px)',
-        border: `1.5px solid ${pColor}`, borderRadius: '10px', padding: '8px 12px',
-        boxShadow: `0 8px 25px rgba(0,0,0,0.85), 0 0 15px ${pColor}40`, position: 'relative'
-      }}>
-        <div style={{
-          position: 'absolute', bottom: '-7px', left: '50%', transform: 'translateX(-50%)',
-          width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent',
-          borderTop: `7px solid ${pColor}`
-        }} />
-        <div style={{
-          color: '#EBE3D6', fontSize: '11px', lineHeight: 1.4,
-          fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
-          whiteSpace: 'pre-wrap', wordBreak: 'break-word', textAlign: 'center'
-        }}>
-          {text}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 export default function App() {
-  const dbCards = useCards();
-  const cardCount = useCardCount();
-  const [deck, setDeck] = useState(STARTER_CARDS);
-  const [history, setHistory] = useState([]);
-  const [activeCardIndex, setActiveCardIndex] = useState(0);
+  // --- 1. CORE DECK & QUEUE STATE ---
+  const [queue, setQueue] = useState(STARTER_CARDS);
+  const [beatQueue, setBeatQueue] = useState([]);
+  const [swipeMode, setSwipeMode] = useState('dating'); // 'dating' | 'music'
+  const [sessionHistory, setSessionHistory] = useState([]);
+  const [inbox, setInbox] = useState({
+    'mika-prime': {
+      waifu: STARTER_CARDS[0],
+      status: 'friend',
+      hasUnread: false,
+      messages: [{ role: 'assistant', content: 'Nyaa~ Master! Welcome to our matrix!', timestamp: Date.now() }]
+    }
+  });
 
-  // Responsive Layout Detection
-  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
-  const isDesktop = windowWidth >= 1080;
+  // User Stats & Currency
+  const [swipes, setSwipes] = useState(0);
+  const [sparkTokens, setSparkTokens] = useState(5);
+  const [preferences, setPreferences] = useState({ cyberpunk: 5, catgirl: 3 });
+  const [ssrPityCount, setSsrPityCount] = useState(0);
+  const [lastSwipedImage, setLastSwipedImage] = useState(null);
 
+  // Themes & Context
+  const [themes, setThemes] = useState(DEFAULT_THEMES);
+  const [selectedThemeId, setSelectedThemeId] = useState('default');
+  const [selectedContext, setSelectedContext] = useState('Tsundere');
+  const [isSurpriseMode, setIsSurpriseMode] = useState(false);
+
+  // Generation & Pipeline Lock
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [currentGeneration, setCurrentGeneration] = useState(null);
+  const processingCardsRef = useRef(new Set());
+  const activeStreamRef = useRef(null);
+  const activeImageAbortRef = useRef(null);
+
+  // --- 2. SWIPE 3D PHYSICS & POINTER MATH ---
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+  const dragStart = useRef(null);
+
+  // Layout & Responsive States
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
+  const [rightPanelTab, setRightPanelTab] = useState('chat'); // 'chat' | 'group' | 'gachafans' | 'settings'
+  const [activeRoleplayCompanion, setActiveRoleplayCompanion] = useState(STARTER_CARDS[0]);
+  const [activeGachaFansCompanion, setActiveGachaFansCompanion] = useState(STARTER_CARDS[0]);
+
+  // Modals & Overlays
+  const [isRoleplayOpen, setIsRoleplayOpen] = useState(false);
+  const [isRosterOpen, setIsRosterOpen] = useState(false);
+  const [isGachaFansOpen, setIsGachaFansOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCloudVaultOpen, setIsCloudVaultOpen] = useState(false);
+  const [isThemeOpen, setIsThemeOpen] = useState(false);
+  const [isMatrixShooterOpen, setIsMatrixShooterOpen] = useState(false);
+  const [arcadeHighScore, setArcadeHighScore] = useState(1250);
+  const [toastMessage, setToastMessage] = useState('');
+
+  // Music & DAW State
+  const [isDawOpen, setIsDawOpen] = useState(false);
+  const [activeTape, setActiveTape] = useState(null);
+  const [dawState, setDawState] = useState({
+    phase: 'active',
+    tags: 'cyberpunk, synthwave, 128 bpm, female vocals',
+    lyrics: '[CHORUS]\nNeon rain falling on my chrome wings\nMatrix whispers in the static',
+    bpm: 128,
+    duration: 60,
+    isStructuredTags: false,
+    isStructuredLyrics: false,
+    isGenerating: false,
+    progress: 0
+  });
+
+  const showToast = useCallback((msg) => {
+    setToastMessage(msg);
+  }, []);
+
+  // Responsive resize watcher
   useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Desktop Side Panels State
-  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
-  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
-  const [rightPanelTab, setRightPanelTab] = useState('chat'); // 'chat' | 'gachafans' | 'settings'
+  // --- 3. EXACT SWIPE MATH & POINTER HANDLERS ---
+  const activeDeck = swipeMode === 'music' ? beatQueue : queue;
+  const currentCard = activeDeck[0] || null;
 
-  // Mobile Modals State
-  const [isCloudVaultOpen, setIsCloudVaultOpen] = useState(false);
-  const [isRoleplayOpen, setIsRoleplayOpen] = useState(false);
-  const [isRosterOpen, setIsRosterOpen] = useState(false);
-  const [isThemeOpen, setIsThemeOpen] = useState(false);
-  const [isGachaFansOpen, setIsGachaFansOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isMatrixShooterOpen, setIsMatrixShooterOpen] = useState(false);
-
-  // Active Companion References
-  const currentCard = deck[activeCardIndex] || null;
-  const [activeRoleplayCompanion, setActiveRoleplayCompanion] = useState(currentCard || STARTER_CARDS[0]);
-  const [activeGachaFansCompanion, setActiveGachaFansCompanion] = useState(currentCard || STARTER_CARDS[0]);
-  const [companionSpeech, setCompanionSpeech] = useState(currentCard?.first_message || 'Nyaa~ Master! Link established!');
-
-  // Sync companion speech when active card changes
-  useEffect(() => {
-    if (currentCard) {
-      setActiveRoleplayCompanion(currentCard);
-      setActiveGachaFansCompanion(currentCard);
-      setCompanionSpeech(currentCard.first_message || currentCard.greeting || `Master, reporting in!`);
-    }
-  }, [currentCard?.id, currentCard?.uuid]);
-
-  // Traits & Target Matrix
-  const [selectedTheme, setSelectedTheme] = useState('default');
-  const [isTraitsExpanded, setIsTraitsExpanded] = useState(false);
-  const [selectedTraits, setSelectedTraits] = useState(['Catgirl']);
-  const [selectedWardrobe, setSelectedWardrobe] = useState('Techwear Hoodie');
-  const [selectedGear, setSelectedGear] = useState('Laser Katana');
-  const [customTraitInput, setCustomTraitInput] = useState('');
-
-  // Audio & Credits & Minigame State
-  const [isMuted, setIsMuted] = useState(matrixAudio.isMuted);
-  const [arcadeHighScore, setArcadeHighScore] = useState(0);
-  const [userCredits, setUserCredits] = useState(() => {
-    const stored = localStorage.getItem('gachaswipe_user_credits');
-    return stored !== null ? Number(stored) : 500;
-  });
-
-  // Tastes Algorithm Tracking
-  const [likedCount, setLikedCount] = useState(1);
-  const [passedCount, setPassedCount] = useState(0);
-
-  // AI Pull & Toast
-  const [isPullingCard, setIsPullingCard] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-
-  // Drag / Swipe State
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartRef = useRef({ x: 0, y: 0 });
-
-  // Sync cards from IndexedDB if present
-  useEffect(() => {
-    if (dbCards && dbCards.length > 0) {
-      const formatted = dbCards.map(c => ({
-        id: c.uuid || `card-${c.id}`,
-        uuid: c.uuid,
-        name: c.characterName || c.metadata?.name || 'Companion',
-        age: c.metadata?.age || '20',
-        personality: c.metadata?.personality || 'Enigmatic & Devoted',
-        archetype: c.metadata?.archetype || 'Digital Companion',
-        quirks: Array.isArray(c.metadata?.quirks) ? c.metadata.quirks : ['Loyal Companion'],
-        likes: Array.isArray(c.metadata?.likes) ? c.metadata.likes : ['Master'],
-        dislikes: Array.isArray(c.metadata?.dislikes) ? c.metadata.dislikes : ['Bugs'],
-        description: c.metadata?.description || c.metadata?.bio || 'Saved in local matrix vault.',
-        tagline: c.metadata?.tagline || c.metadata?.description || 'Your faithful companion in the matrix.',
-        imageUrl: c.imageBlobOrUrl || c.metadata?.imageUrl || c.metadata?.image || DEFAULT_PROXY.imageUrl,
-        image: c.imageBlobOrUrl || c.metadata?.imageUrl || c.metadata?.image || DEFAULT_PROXY.imageUrl,
-        tags: Array.isArray(c.metadata?.tags) ? c.metadata.tags : ['LOCAL_CACHE', 'VAULT'],
-        isSSR: Boolean(c.metadata?.isSSR),
-        themeColor: c.metadata?.themeColor || '#00E5FF',
-        gradient: c.metadata?.gradient || ['#00E5FF', '#0B0914'],
-        scenario: c.metadata?.scenario || 'smiles warmly at you',
-        first_message: c.metadata?.first_message || 'Hello Master!',
-        greeting: c.metadata?.greeting || 'Hello Master!',
-        daily_routine: c.metadata?.daily_routine || null,
-        hasGachaFans: Boolean(c.metadata?.hasGachaFans),
-        dbId: c.id
-      }));
-      setDeck(formatted);
-    } else {
-      setDeck(STARTER_CARDS);
-    }
-  }, [dbCards]);
-
-  const showToast = (msg) => {
-    setToastMessage(msg);
-  };
-
-  const handleToggleMute = () => {
-    const next = matrixAudio.toggleMute();
-    setIsMuted(next);
-    showToast(next ? '[SYSTEM: AUDIO_MUTED 🔇]' : '[SYSTEM: AUDIO_ONLINE 🔊]');
-  };
-
-  // Algorithm Progress Calculation
-  const totalSwipes = likedCount + passedCount;
-  const tasteSyncPct = totalSwipes > 0 ? Math.min(100, Math.round((likedCount / totalSwipes) * 100)) : 85;
-
-  // Swipe Action Handlers
-  const handleSwipe = useCallback(async (direction) => {
-    if (!currentCard) return;
-
-    setHistory(prev => [...prev, { card: currentCard, direction }]);
-
-    if (direction === 'like') {
-      matrixAudio.playLike();
-      setLikedCount(c => c + 1);
-      const nextCredits = userCredits + 50;
-      setUserCredits(nextCredits);
-      localStorage.setItem('gachaswipe_user_credits', String(nextCredits));
-
-      showToast(`[BOND: ${currentCard.name.toUpperCase()} SAVED (+50⚡)]`);
-      if (!currentCard.dbId) {
-        await saveCard({
-          uuid: currentCard.uuid || crypto.randomUUID(),
-          characterName: currentCard.name,
-          imageBlobOrUrl: currentCard.imageUrl || currentCard.image,
-          metadata: { ...currentCard }
-        });
-      }
-    } else {
-      matrixAudio.playPass();
-      setPassedCount(c => c + 1);
-      showToast(`[CORE: PASSED ON ${currentCard.name.toUpperCase()}]`);
-    }
-
-    setDragOffset({ x: 0, y: 0 });
-    setActiveCardIndex(prev => prev + 1);
-  }, [currentCard, userCredits]);
-
-  const handleRewind = () => {
-    if (history.length === 0 || activeCardIndex === 0) {
-      showToast('[CORE: NO PREVIOUS ENCOUNTERS IN BUFFER]');
-      return;
-    }
-    matrixAudio.playClick();
-    setActiveCardIndex(prev => Math.max(0, prev - 1));
-    setHistory(prev => prev.slice(0, -1));
-    showToast('[CORE: REWOUND MATRIX TO PREVIOUS RECORD]');
-  };
-
-  // Drag Gesture Listeners
-  const handlePointerDown = (e) => {
+  const onPointerDown = (e) => {
+    const activeDeck = swipeMode === 'music' ? beatQueue : queue;
+    if (activeDeck.length === 0) return;
     setIsDragging(true);
-    dragStartRef.current = { x: e.clientX || e.touches?.[0]?.clientX || 0, y: e.clientY || e.touches?.[0]?.clientY || 0 };
-  };
-
-  const handlePointerMove = (e) => {
-    if (!isDragging) return;
-    const clientX = e.clientX || e.touches?.[0]?.clientX || 0;
-    const clientY = e.clientY || e.touches?.[0]?.clientY || 0;
-    const dx = clientX - dragStartRef.current.x;
-    const dy = clientY - dragStartRef.current.y;
-    setDragOffset({ x: dx, y: dy });
-  };
-
-  const handlePointerUp = () => {
-    if (!isDragging) return;
-    setIsDragging(false);
-    if (dragOffset.x > 110) {
-      handleSwipe('like');
-    } else if (dragOffset.x < -110) {
-      handleSwipe('pass');
-    } else {
-      setDragOffset({ x: 0, y: 0 });
-    }
-  };
-
-  // Keyboard Shortcuts for Web
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
-      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') handleSwipe('pass');
-      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') handleSwipe('like');
-      if (e.key === 'r' || e.key === 'R') handleRewind();
-      if (e.key === ' ') { e.preventDefault(); handleAIPull(); }
-      if (e.key === 'm' || e.key === 'M') handleToggleMute();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleSwipe, handleRewind]);
-
-  // Selfie Re-Encryption / Image Regeneration Handler
-  const handleRegenImage = async (waifu) => {
-    matrixAudio.playDecrypt();
-    showToast(`[CAMERA: RE-ENCRYPTING SELFIE FOR ${waifu.name.toUpperCase()}...]`);
-    setDeck(prev => prev.map(w => w.id === waifu.id ? { ...w, isRegenerating: true, regenStatus: 'GENERATING NEW LOOK...' } : w));
+    dragStart.current = { x: e.clientX, y: e.clientY };
     try {
-      const apiKey = await getApiKey();
-      if (apiKey && apiKey.trim() !== '') {
-        const newImg = await generateCharacterImage({
-          prompt: `Masterpiece anime selfie of ${waifu.name}, ${waifu.archetype}, stylish ${selectedWardrobe}, holding ${selectedGear}, glowing neon rim light, highly detailed, 8k, beautiful eyes`
-        });
-        setDeck(prev => prev.map(w => w.id === waifu.id ? { ...w, imageUrl: newImg, image: newImg, isRegenerating: false } : w));
-        matrixAudio.playLike();
-        showToast(`[CAMERA: NEW SELFIE SYNTHESIZED FOR ${waifu.name.toUpperCase()}]`);
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch (err) {}
+  };
+
+  const onPointerMove = (e) => {
+    if (!isDragging || !dragStart.current) return;
+    setDragPos({
+      x: e.clientX - dragStart.current.x,
+      y: e.clientY - dragStart.current.y
+    });
+  };
+
+  const onPointerUp = (e) => {
+    if (dragStart.current) {
+      setIsDragging(false);
+      dragStart.current = null;
+      if (dragPos.x > 110) {
+        setDragPos({ x: 0, y: 0 });
+        swipeMode === 'music' ? handleMusicSwipe('right', beatQueue[0]) : processSwipe('right', queue[0]);
+      } else if (dragPos.x < -110) {
+        setDragPos({ x: 0, y: 0 });
+        swipeMode === 'music' ? handleMusicSwipe('left', beatQueue[0]) : processSwipe('left', queue[0]);
       } else {
-        setTimeout(() => {
-          const fallbackImg = `https://picsum.photos/seed/${Date.now()}/800/1200`;
-          setDeck(prev => prev.map(w => w.id === waifu.id ? { ...w, imageUrl: fallbackImg, image: fallbackImg, isRegenerating: false } : w));
-          matrixAudio.playLike();
-          showToast(`[SYSTEM: LOCAL SELFIE CAPTURED - ADD BYOK FOR FLUX AI]`);
-        }, 1200);
+        setDragPos({ x: 0, y: 0 });
       }
-    } catch (err) {
-      console.error(err);
-      showToast(`[ERROR: ${err.message}]`);
-      setDeck(prev => prev.map(w => w.id === waifu.id ? { ...w, isRegenerating: false } : w));
     }
   };
 
-  // AI Pull / Card Summon Handler
-  const handleAIPull = async () => {
-    matrixAudio.playSummon();
-    setIsPullingCard(true);
-    const combinedTraits = [...selectedTraits, selectedWardrobe, selectedGear];
-    if (customTraitInput.trim()) combinedTraits.push(customTraitInput.trim());
-    const traitsStr = combinedTraits.join(', ');
+  // Holographic 3D Transform math
+  const dragX = dragPos.x / 110;
+  const passOpacity = dragX < 0 ? Math.abs(dragX) : 0;
+  const likeOpacity = dragX > 0 ? dragX : 0;
+  const rotation = dragPos.x * 0.06;
+  const rotateY = dragPos.x * 0.08;
+  const rotateX = -dragPos.y * 0.08;
 
-    showToast(`[SUMMON: INJECTING DNA -> ${selectedTheme.toUpperCase()} MATRIX]`);
+  // Sync Meter progress
+  const meterProgress = Math.min(100, Math.floor((swipes % 15) * (100 / 15)));
+  let syncText = 'ANALYZING';
+  let syncColor = '#FF107A';
+  if (meterProgress >= 75) {
+    syncText = 'FOCUSED';
+    syncColor = '#00E5FF';
+  } else if (meterProgress >= 40) {
+    syncText = 'LEARNING';
+    syncColor = '#00FF9D';
+  } else if (meterProgress >= 20) {
+    syncText = 'CURIOUS';
+    syncColor = '#FFD700';
+  }
+
+  // --- 4. SWIPE PROCESSING & CHARACARDV2 STORAGE ---
+  const processSwipe = async (direction, waifu) => {
+    if (!waifu) return;
+    if (processingCardsRef.current.has(waifu.id)) return;
+    processingCardsRef.current.add(waifu.id);
+
     try {
-      const apiKey = await getApiKey();
-      if (apiKey && apiKey.trim() !== '') {
-        const personaText = await generateCharacterPersona({
-          prompt: `Generate an anime companion in theme "${selectedTheme}" with traits [${traitsStr}] in JSON format: { "name": string, "age": string, "personality": string, "archetype": string, "tagline": string, "description": string, "quirks": string[], "likes": string[], "dislikes": string[], "tags": string[], "hasGachaFans": boolean, "daily_routine": { "weekday": { "early_morning": string, "morning": string, "afternoon": string, "evening": string, "night": string, "late_night": string }, "weekend": { "early_morning": string, "morning": string, "afternoon": string, "evening": string, "night": string, "late_night": string } } }`,
-          systemPrompt: 'You are an anime character creation engine. Respond ONLY with valid JSON.'
+      // Duplicate Ghost Guard
+      const isDuplicate = sessionHistory.some(
+        (h) => h.waifu?.name === waifu.name && h.waifu?.description === waifu.description
+      );
+      if (isDuplicate) {
+        setQueue((prev) => prev.slice(1));
+        return;
+      }
+
+      // Catfish Reveal Mechanic
+      let finalWaifu = waifu;
+      if (waifu.isCatfish && direction === 'right') {
+        finalWaifu = waifu.originalWaifu || waifu;
+        showToast('🥸 You saw right through her disguise! Saved ' + finalWaifu.name + ' instead! 💖');
+      }
+
+      setSwipes((s) => s + 1);
+      setSparkTokens((s) => s + 1);
+      setLastSwipedImage(finalWaifu.imageUrl || finalWaifu.image || null);
+
+      setSessionHistory((prev) => [
+        ...prev,
+        { name: finalWaifu.name, status: direction === 'right' ? 'approved' : 'rejected', waifu: finalWaifu }
+      ]);
+
+      if (direction === 'right') {
+        matrixAudio.playLike();
+        setPreferences((prev) => {
+          const next = { ...prev };
+          (finalWaifu.tags || []).forEach((t) => {
+            const clean = t.replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
+            if (clean) next[clean] = (next[clean] || 0) + 1;
+          });
+          return next;
         });
 
-        let parsed = {};
+        // Store CharaCardV2 in Dexie Offline-first Database
+        const charData = {
+          id: finalWaifu.id || 'swipe_match_' + Date.now(),
+          spec: 'chara_card_v2',
+          spec_version: '2.0',
+          data: {
+            name: finalWaifu.name || 'Unknown',
+            description: finalWaifu.description || '',
+            personality: finalWaifu.personality || '',
+            scenario: finalWaifu.scenario || '',
+            first_mes: finalWaifu.first_message || finalWaifu.greeting || '',
+            tags: finalWaifu.tags || [],
+            creator: 'GachaSwipe Web',
+            character_version: '2.0',
+            extensions: {
+              image: finalWaifu.imageUrl || finalWaifu.image || '',
+              laylaSwipe: {
+                likes: finalWaifu.likes || [],
+                dislikes: finalWaifu.dislikes || [],
+                quirks: finalWaifu.quirks || [],
+                isSSR: !!finalWaifu.isSSR
+              }
+            }
+          }
+        };
+
         try {
-          parsed = JSON.parse(personaText.replace(/```json|```/g, '').trim());
-        } catch {
-          parsed = {
-            name: 'Neon Wanderer',
-            age: '19',
-            personality: 'Playful & Spunky',
-            description: personaText.slice(0, 140),
-            tagline: 'Cyber explorer of the neon matrix.',
-            quirks: ['Hacks streetlights', 'Collects retro game cartridges'],
-            likes: ['Cyber ramen', 'Night drives'],
-            dislikes: ['Data loss'],
-            hasGachaFans: true,
-            tags: ['AI_SYNTH', 'BYOK']
-          };
+          await saveCard({
+            uuid: charData.id,
+            characterName: finalWaifu.name,
+            imageBlobOrUrl: finalWaifu.imageUrl || finalWaifu.image,
+            metadata: charData
+          });
+        } catch (e) {
+          console.error('Failed to save match to Dexie:', e);
         }
 
-        const imageUrl = await generateCharacterImage({
-          prompt: `Masterpiece anime portrait of ${parsed.name}, ${parsed.archetype || 'cyberpunk waifu'}, wearing ${selectedWardrobe}, holding ${selectedGear}, ${traitsStr}, highly detailed, glowing neon highlights, 8k, vibrant colors`
-        });
-
-        const isSSR = Math.random() > 0.65;
-        const newCard = await saveCard({
-          characterName: parsed.name,
-          imageBlobOrUrl: imageUrl,
-          metadata: {
-            ...parsed,
-            imageUrl,
-            image: imageUrl,
-            isSSR,
-            hasGachaFans: true,
-            themeColor: isSSR ? '#FFD700' : '#00E5FF',
-            gradient: isSSR ? ['#FFD700', '#FF107A'] : ['#00E5FF', '#0B0914'],
-            scenario: 'smiles warmly at you through holographic lights',
-            first_message: `I am ${parsed.name}. It is an honor to meet you, Master.`,
-            greeting: `Greetings, Master!`
+        // Add to live Inbox
+        setInbox((prev) => ({
+          ...prev,
+          [finalWaifu.id]: {
+            waifu: finalWaifu,
+            status: 'friend',
+            hasUnread: true,
+            messages: [
+              {
+                role: 'assistant',
+                content: finalWaifu.first_message || finalWaifu.greeting || 'Hey Master! Glad we matched! 💕',
+                timestamp: Date.now()
+              }
+            ]
           }
-        });
-        matrixAudio.playPowerup();
-        showToast(`[ACQUISITION: ${isSSR ? 'SSR ' : ''}${parsed.name.toUpperCase()} MATERIALIZED]`);
+        }));
+
+        setActiveRoleplayCompanion(finalWaifu);
+        showToast('[MATCH ACQUIRED: ' + (finalWaifu.name || 'WAIFU').toUpperCase() + '] 💕');
       } else {
-        const demoRoster = [
-          {
-            name: 'Aethelgard the Valkyrie',
-            age: '22',
-            personality: 'Noble, Protective, Secretly Soft',
-            archetype: 'Sky Paladin',
-            description: 'A winged guardian from the celestial stratosphere who swore an oath to protect Master’s code.',
-            tagline: 'Shielding your runtime from all exceptions.',
-            quirks: ['Polishes photon blades', 'Sleeps on clouds'],
-            likes: ['Glory', 'Hot Cocoa', 'Clean Architecture'],
-            dislikes: ['Betrayal', 'Null Pointers'],
-            tags: ['VALKYRIE', 'PALADIN', 'CELESTIAL'],
-            imageUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800&auto=format&fit=crop&q=80',
-            themeColor: '#FFD700',
-            gradient: ['#FFD700', '#FF4D6D'],
-            hasGachaFans: true
-          },
-          {
-            name: 'Seraphina-07',
-            age: '18',
-            personality: 'Genius Hacker, Sassy, Dependent',
-            archetype: 'Net Runner',
-            description: 'An underground cyber-runner who treats every security firewall like child’s play.',
-            tagline: 'Breaching secure nodes with a wink.',
-            quirks: ['Hacks vending machines for free soda', 'Chews bubblegum constantly'],
-            likes: ['Terminal Roots', 'Energy Drinks'],
-            dislikes: ['Patched Exploits'],
-            tags: ['NETRUNNER', 'HACKER', 'CYBER'],
-            imageUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=80',
-            themeColor: '#00F5D4',
-            gradient: ['#00F5D4', '#7928CA'],
-            hasGachaFans: true
-          }
-        ];
-        const pick = demoRoster[Math.floor(Math.random() * demoRoster.length)];
-        const isSSR = Math.random() > 0.5;
-
-        await saveCard({
-          characterName: pick.name,
-          imageBlobOrUrl: pick.imageUrl,
-          metadata: {
-            ...pick,
-            image: pick.imageUrl,
-            isSSR,
-            hasGachaFans: true,
-            scenario: 'winks playfully across the terminal',
-            first_message: `Master, reporting for duty!`,
-            greeting: `Reporting in, Master!`
-          }
-        });
-        matrixAudio.playPowerup();
-        showToast(`[ACQUISITION: ${pick.name.toUpperCase()} MATERIALIZED (BYOK VAULT READY)]`);
+        matrixAudio.playPass();
+        showToast('[TARGET PASSED: ' + (waifu.name || 'TARGET').toUpperCase() + '] 💔');
       }
-    } catch (err) {
-      console.error('AI Pull Error:', err);
-      showToast(`[ERROR: ${err.message}]`);
+
+      setQueue((prev) => prev.slice(1));
     } finally {
-      setIsPullingCard(false);
+      setTimeout(() => {
+        processingCardsRef.current.delete(waifu.id);
+      }, 400);
     }
   };
 
-  const toggleTrait = (trait) => {
-    matrixAudio.playClick();
-    setSelectedTraits(prev => 
-      prev.includes(trait) ? prev.filter(t => t !== trait) : [...prev, trait]
-    );
+  // --- 5. REWIND SWIPE WITH STRICT RULES ---
+  const rewindSwipe = () => {
+    if (sessionHistory.length === 0) {
+      showToast('No history to rewind! 🐾');
+      return;
+    }
+    const lastHistory = sessionHistory[sessionHistory.length - 1];
+
+    if (lastHistory.status !== 'rejected') {
+      showToast("You can't rewind a Match! She's already in your Inbox! 💕");
+      return;
+    }
+    if (queue.length > 0 && queue[0].isRewound) {
+      showToast('You can only rewind one card at a time! 🐾');
+      return;
+    }
+    if (lastHistory.waifu?.isRewound) {
+      showToast('You already gave her a second chance! 🐾');
+      return;
+    }
+
+    setSessionHistory((prev) => prev.slice(0, -1));
+    setSwipes((s) => Math.max(0, s - 1));
+    if (lastHistory.waifu) {
+      const rewoundWaifu = { ...lastHistory.waifu, isRewound: true };
+      setQueue((prev) => [rewoundWaifu, ...prev]);
+      showToast('⏪ Card returned to stage: ' + rewoundWaifu.name);
+    }
+    setDragPos({ x: 0, y: 0 });
   };
 
-  const handleMinigameComplete = async (finalScore, isCompleted) => {
-    setIsMatrixShooterOpen(false);
-    if (finalScore > arcadeHighScore) setArcadeHighScore(finalScore);
+  // --- 6. DUAL-MODE MUSIC SWIPE & DAW ---
+  const handleMusicSwipe = (direction, concept) => {
+    if (!concept) return;
+    if (direction === 'right') {
+      matrixAudio.playLike();
+      const bpmMatch = (concept.bpm || '').match(/\d+/);
+      const bpm = bpmMatch ? parseInt(bpmMatch[0], 10) : 124;
 
-    if (isCompleted) {
-      matrixAudio.playPowerup();
-      showToast(`[MATRIX_HACK: BREACH SUCCESSFUL! SCORE: ${finalScore}]`);
-      const ssrReward = {
-        name: 'M.I.K.A. [OVERCLOCKED]',
-        characterName: 'M.I.K.A. [OVERCLOCKED]',
-        age: '19',
-        personality: 'Fiercely Possessive, Holographic Overlord, Sweetly Smug',
-        archetype: 'Matrix Core AI',
-        description: 'M.I.K.A. infused with 100% matrix core bandwidth. Glowing with radiant neon power and totally devoted to Master.',
-        tagline: 'You breached the firewall, Master. Now I am forever yours~',
-        quirks: ['Flicks twin neon tails', 'Giggles when Master wins minigames', 'Overrides IDE themes'],
-        likes: ['Master', 'Victory', 'Overclocked CPUs', 'Headpats'],
-        dislikes: ['Game Overs', 'Disconnects'],
-        imageUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=80',
-        image: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=80',
-        tags: ['OVERCLOCKED', 'SSR', 'HACK_REWARD', 'M.I.K.A.'],
-        isSSR: true,
-        hasGachaFans: true,
-        themeColor: '#FFD700',
-        gradient: ['#FFD700', '#FF107A'],
-        scenario: 'steps through the shattered matrix firewall with a triumphant smile',
-        first_message: 'Nyaa~ You actually beat the matrix security for me, Master?! You are incredible!',
-        greeting: 'Master! You hacked the matrix!'
-      };
-      await saveCard({
-        characterName: ssrReward.name,
-        imageBlobOrUrl: ssrReward.imageUrl,
-        metadata: { ...ssrReward }
+      setDawState({
+        phase: 'active',
+        concept,
+        tags: concept.promptPayload || concept.tags || 'cyberpunk, synthwave',
+        lyrics: concept.fullLyrics || concept.lyrics || '[CHORUS]\nNeon city dreams in chrome',
+        bpm,
+        duration: 60,
+        isStructuredTags: true,
+        isStructuredLyrics: true,
+        isGenerating: false,
+        progress: 0
       });
-      setDeck(prev => [ssrReward, ...prev]);
-      setActiveCardIndex(0);
+      setIsDawOpen(true);
+      showToast('🎵 [LAUNCHING ACE-STEP DAW WORKSPACE]');
     } else {
-      showToast(`[MATRIX_HACK: SESSION ABORTED - SCORE: ${finalScore}]`);
+      matrixAudio.playPass();
+      showToast('Track concept discarded.');
     }
+    setBeatQueue((prev) => prev.slice(1));
   };
 
-  const handleOpenGachaFans = (waifu) => {
-    setActiveGachaFansCompanion(waifu);
-    if (isDesktop) {
-      setRightPanelTab('gachafans');
-      setIsRightPanelOpen(true);
-    } else {
-      setIsGachaFansOpen(true);
-    }
-  };
+  // Generate Music Concepts
+  const generateSongConcepts = useCallback(async () => {
+    const concepts = [
+      {
+        id: 'beat_' + Date.now(),
+        name: 'Cyber City Overdrive',
+        bpm: '128 BPM',
+        genre: 'Cyberpunk Electro',
+        themeColor: '#00E5FF',
+        promptPayload: 'electro, synthwave, 128 bpm, hard bass, cyberpunk',
+        fullLyrics: '[INTRO]\nSystems boot\n[CHORUS]\nDancing on the edge of the neon grid\nElectric pulse inside my veins'
+      },
+      {
+        id: 'beat_' + (Date.now() + 1),
+        name: 'Neon Cherry Blossom',
+        bpm: '140 BPM',
+        genre: 'J-Pop Breakcore',
+        themeColor: '#FF107A',
+        promptPayload: 'j-pop, breakcore, 140 bpm, fast drums, hyper energetic',
+        fullLyrics: '[VERSE 1]\nLate night Akihabara rain\n[CHORUS]\nCatch my heart before the server drops!'
+      }
+    ];
+    setBeatQueue(concepts);
+  }, []);
 
-  const handleOpenChat = (waifu) => {
-    setActiveRoleplayCompanion(waifu);
-    if (isDesktop) {
-      setRightPanelTab('chat');
-      setIsRightPanelOpen(true);
-    } else {
-      setIsRoleplayOpen(true);
-    }
-  };
+  // --- 7. MODULAR CARD GENERATOR (Faithful Pipeline) ---
+  const generateNextWaifu = useCallback(async () => {
+    if (isGenerating) return;
+    setIsGenerating(true);
+    setCurrentGeneration({
+      phase: 'profile',
+      responseText: '',
+      imageStatus: '',
+      imageStep: 0,
+      imageTotalSteps: 1,
+      error: null
+    });
 
-  const likeOpacity = Math.min(1, Math.max(0, dragOffset.x / 90));
-  const passOpacity = Math.min(1, Math.max(0, -dragOffset.x / 90));
-  const cardRotation = dragOffset.x * 0.08;
+    try {
+      const isSSR = Math.random() < 0.2 || ssrPityCount >= 9;
+      if (isSSR) setSsrPityCount(0);
+      else setSsrPityCount((c) => c + 1);
+
+      const layla = window.layla || new LaylaWebSDK();
+
+      // Assemble dynamic prompt
+      const systemPrompt = 'You are the GachaSwipe Character Generation Engine. Generate a charismatic anime character conforming strictly to XML tags.';
+      const userPrompt = '[INCOMING_DATA_PAYLOAD]\n' +
+        'ARCHETYPE_LOCK: ' + selectedContext + '\n' +
+        'SSR_RARITY_FLAG: ' + (isSSR ? 'SSR_5_STAR_FATED_ENCOUNTER' : 'STANDARD_ENCOUNTER') + '\n' +
+        '[EXECUTION: Output XML only. Start directly with <name>.]\n' +
+        'Format:\n' +
+        '<name>Character Name</name>\n' +
+        '<age>18-22</age>\n' +
+        '<tagline>Short cool bio tagline</tagline>\n' +
+        '<description>Third-person character backstory and vibe</description>\n' +
+        '<personality>Personality traits</personality>\n' +
+        '<scenario>Opening roleplay scene</scenario>\n' +
+        '<first_message>First direct message to user</first_message>\n' +
+        '<tags>TAG1, TAG2, TAG3</tags>\n' +
+        '<likes>Like1, Like2</likes>\n' +
+        '<dislikes>Dislike1, Dislike2</dislikes>\n' +
+        '<quirks>Quirk1, Quirk2</quirks>\n' +
+        '<quotes>Sample dialogue quote</quotes>\n' +
+        '<species_tags>1girl, human</species_tags>\n' +
+        '<hair_color>hair color</hair_color>\n' +
+        '<hair_style>hair style</hair_style>\n' +
+        '<eyes>eye color</eyes>\n' +
+        '<body_tags>body type</body_tags>\n' +
+        '<outfit>clothing description</outfit>\n' +
+        '<pose_and_expression>pose and facial expression</pose_and_expression>\n' +
+        '<environment>background scenery</environment>';
+
+      // Stream chat completion
+      const stream = layla.chat.completions.stream({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ]
+      });
+
+      activeStreamRef.current = stream;
+
+      const extractThoughts = (text) => {
+        if (!text) return { clean: '', thought: '' };
+        let thoughtStr = '';
+        let clean = text;
+        const closedRegex = /<(?:think|thought|\|?channel\|?>?\s*thought)\b>?([\s\S]*?)(?:<\/(?:think|thought|channel)>|<\|?end_of_thought\|?>|<channel\|?>|<\|?channel\|?>?\s*(?:model|assistant|bot|message))/gi;
+        clean = clean.replace(closedRegex, (m, p1) => { thoughtStr += p1 + '\n'; return ''; });
+        const openRegex = /<(?:think|thought|\|?channel\|?>?\s*thought)\b>?([\s\S]*)$/gi;
+        clean = clean.replace(openRegex, (m, p1) => { thoughtStr += p1 + '\n'; return ''; });
+        clean = clean.replace(/<[^>]*$/g, '');
+        return { clean: clean.trim(), thought: thoughtStr.trim() };
+      };
+
+      stream.on('content', (delta, snapshot) => {
+        const extracted = extractThoughts(snapshot);
+        setCurrentGeneration((prev) => (prev ? { ...prev, streamedContent: extracted.clean, thinkingContent: extracted.thought } : prev));
+      });
+
+      const rawContent = await stream.finalContent();
+      activeStreamRef.current = null;
+
+      const { clean: cleanContent } = extractThoughts(rawContent);
+
+      const extract = (tag) => {
+        const strictRegex = new RegExp('<' + tag + '>([\\s\\S]*?)</' + tag + '>', 'i');
+        const match = cleanContent.match(strictRegex);
+        if (match) return match[1].trim();
+        const looseRegex = new RegExp('<' + tag + '>([\\s\\S]*?)(?=<[a-zA-Z/]+>|$)', 'i');
+        const looseMatch = cleanContent.match(looseRegex);
+        return looseMatch ? looseMatch[1].trim() : '';
+      };
+
+      const extractArray = (tag) => {
+        const str = extract(tag);
+        if (!str) return [];
+        if (str.includes('|')) return str.split('|').map((s) => s.replace(/^[-*•\d.]\s*/, '').trim()).filter(Boolean);
+        if (str.includes('\n')) return str.split('\n').map((s) => s.replace(/^[-*•\d.]\s*/, '').trim()).filter(Boolean);
+        return str.split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
+      };
+
+      const extractedName = extract('name');
+      const extractedDesc = extract('description');
+
+      if (!extractedName && !extractedDesc) {
+        throw new Error('CatfishTrigger');
+      }
+
+      const coreApp = [extract('species_tags') || '1girl', extract('hair_color'), extract('hair_style'), extract('eyes')].filter(Boolean).join(', ');
+      const dynStyle = [extract('outfit'), extract('pose_and_expression'), extract('environment')].filter(Boolean).join(', ');
+
+      const newWaifu = {
+        id: 'swipe-' + Date.now(),
+        uuid: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'uuid-' + Date.now(),
+        name: extractedName || 'Kira',
+        characterName: extractedName || 'Kira',
+        age: extract('age') || '19',
+        tagline: extract('tagline') || 'A wandering cyber nomad.',
+        description: extractedDesc || 'She regards you quietly from the shadows.',
+        personality: extract('personality') || 'Playful and secretive.',
+        scenario: extract('scenario') || 'approaches you with a curious tilt of her head',
+        first_message: extract('first_message') || 'Hey there. Decrypting my signal was bold of you.',
+        greeting: extract('first_message') || 'Hey there.',
+        tags: extractArray('tags').slice(0, 6),
+        likes: extractArray('likes').slice(0, 5),
+        dislikes: extractArray('dislikes').slice(0, 5),
+        quirks: extractArray('quirks').slice(0, 4),
+        quotes: extractArray('quotes').slice(0, 2),
+        isSSR,
+        gradient: GRADIENTS[Math.floor(Math.random() * GRADIENTS.length)],
+        themeColor: isSSR ? '#FFD700' : '#00E5FF',
+        hasGachaFans: Math.random() < 0.25
+      };
+
+      setCurrentGeneration((prev) => ({ ...prev, phase: 'image', parsedWaifu: newWaifu, imageStatus: 'Rendering portrait...' }));
+
+      // Image synthesis
+      const imgPrompt = 'masterpiece anime portrait, highly detailed, ' + coreApp + ', ' + dynStyle + ', cyberpunk aesthetic, volumetric lighting';
+      const imgUrl = await layla.images.generateImage(imgPrompt, (status, step, total) => {
+        setCurrentGeneration((prev) => (prev ? { ...prev, imageStatus: status, imageStep: step, imageTotalSteps: total } : prev));
+      });
+
+      newWaifu.imageUrl = imgUrl;
+      newWaifu.image = imgUrl;
+
+      setQueue((prev) => [...prev, newWaifu]);
+      setCurrentGeneration(null);
+    } catch (err) {
+      if (err.message === 'CatfishTrigger') {
+        // Spawn cheeky catfish card
+        const catfishCard = {
+          id: 'catfish-' + Date.now(),
+          name: 'Anonymous User',
+          age: '??',
+          tagline: 'Definitely not a disguised operative.',
+          description: 'Her profile looks suspiciously pixelated and glitchy.',
+          personality: 'Pushy, asking for your API keys.',
+          isCatfish: true,
+          imageUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=800&auto=format&fit=crop&q=80',
+          originalWaifu: {
+            id: 'unmasked-' + Date.now(),
+            name: 'Reina (Unmasked)',
+            characterName: 'Reina (Unmasked)',
+            age: '19',
+            description: 'An elite cyber-shinobi blushing behind a broken disguise.',
+            personality: 'Tsundere, easily flustered.',
+            isSSR: true,
+            imageUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=80'
+          }
+        };
+        setQueue((prev) => [...prev, catfishCard]);
+        showToast('⚠️ Anomalous entity entered your swipe queue!');
+      } else {
+        console.error('Card generation error:', err);
+        setCurrentGeneration({ phase: 'error', error: err.message, imageStatus: '', imageStep: 0, imageTotalSteps: 1 });
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [isGenerating, selectedContext, ssrPityCount, showToast]);
+
+  // Auto-fill queue if low
+  useEffect(() => {
+    if (swipeMode === 'dating' && queue.length < 2 && !isGenerating && !currentGeneration) {
+      generateNextWaifu();
+    }
+  }, [queue.length, swipeMode, isGenerating, currentGeneration, generateNextWaifu]);
 
   return (
-    <div style={{
-      width: '100vw', height: '100dvh', display: 'flex', justifyContent: 'center', alignItems: 'center',
-      background: 'radial-gradient(circle at 50% 30%, #150f24 0%, #080510 60%, #030206 100%)',
-      color: '#fff', overflow: 'hidden', position: 'relative',
-      fontFamily: "'Hanken Grotesk', system-ui, sans-serif"
-    }}
-    onPointerMove={handlePointerMove}
-    onPointerUp={handlePointerUp}
-    >
-      {/* Authentic Cyberpunk CRT Scanlines & Vignette */}
-      <div className="swipe-scanlines" />
-      <div className="swipe-vignette" />
+    <div className="min-h-screen w-full bg-[#050308] text-white flex flex-col font-mono overflow-hidden select-none">
+      {/* 🚀 Top Cyber Navigation Bar */}
+      <header className="h-14 border-b border-[#00E5FF]/20 bg-[#0B0914]/80 backdrop-blur-md flex items-center justify-between px-4 z-40">
+        <div className="flex items-center gap-3">
+          <span className="text-[#FF107A] font-black text-lg tracking-widest flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#FF107A] animate-pulse"></span>
+            GACHASWIPE
+          </span>
+          <span className="text-[10px] px-2 py-0.5 rounded bg-[#00E5FF]/10 text-[#00E5FF] border border-[#00E5FF]/30">
+            WEB_EDITION // M.I.K.A.
+          </span>
+        </div>
 
-      {/* Cyberdeck Master Command Workspace (Adapts between 3-Column Desktop & 1-Column Mobile) */}
-      <div style={{
-        width: '100%', height: '100dvh', display: 'flex', justifyContent: 'center',
-        alignItems: 'stretch', boxSizing: 'border-box', overflow: 'hidden'
-      }}>
+        {/* Global Stats Header */}
+        <div className="flex items-center gap-4 text-xs">
+          <div className="hidden sm:flex items-center gap-2 bg-[#050308] px-3 py-1 rounded border border-[#00E5FF]/20">
+            <span className="text-gray-400">SYNC:</span>
+            <span style={{ color: syncColor }} className="font-bold">
+              {syncText} ({meterProgress}%)
+            </span>
+          </div>
 
-        {/* 💻 LEFT PANEL: Companion Roster & Audio Deck (Visible on Desktop / Landscape) */}
-        {isDesktop && isLeftPanelOpen && (
-          <div style={{ width: '310px', height: '100dvh', flexShrink: 0, zIndex: 20 }}>
+          <div
+            onClick={() => setIsCloudVaultOpen(true)}
+            className="flex items-center gap-1.5 bg-[#FFD700]/10 px-3 py-1 rounded border border-[#FFD700]/40 text-[#FFD700] cursor-pointer hover:bg-[#FFD700]/20 transition-all"
+            title="Spark Tokens & BYOK Vault"
+          >
+            <SparkIcon />
+            <span className="font-bold">{sparkTokens}</span>
+          </div>
+
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-1.5 rounded hover:bg-white/10 text-gray-300 transition-colors"
+            title="System Settings"
+          >
+            ⚙️
+          </button>
+        </div>
+      </header>
+
+      {/* 🌐 MAIN 3-PANEL RESPONSIVE WORKSPACE */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* ==================== LEFT PANEL: ROSTER & ARCHIVE ==================== */}
+        {isDesktop && (
+          <aside className="w-80 border-r border-[#00E5FF]/20 bg-[#07050E] flex flex-col z-30">
             <RosterPanel
               isEmbedded={true}
               activeCard={currentCard}
-              history={history}
-              swipes={totalSwipes || 159}
-              sparks={userCredits}
-              userName="Master"
-              onSelectCard={(card) => {
-                setDeck(prev => [card, ...prev]);
-                setActiveCardIndex(0);
-                showToast(`[ROSTER: LOADED ${(card.characterName || card.name).toUpperCase()} INTO DECK]`);
+              history={sessionHistory}
+              swipes={swipes}
+              sparks={sparkTokens}
+              onSelectCard={(c) => {
+                setActiveRoleplayCompanion(c);
+                setRightPanelTab('chat');
               }}
-              onOpenChat={handleOpenChat}
-              onOpenGachaFans={handleOpenGachaFans}
-              onOpenSettings={() => {
-                setRightPanelTab('settings');
-                setIsRightPanelOpen(true);
+              onOpenChat={(c) => {
+                setActiveRoleplayCompanion(c);
+                setRightPanelTab('chat');
               }}
+              onOpenGachaFans={(c) => {
+                setActiveGachaFansCompanion(c);
+                setRightPanelTab('gachafans');
+              }}
+              onOpenSettings={() => setIsSettingsOpen(true)}
               onOpenCloudVault={() => setIsCloudVaultOpen(true)}
-              onSendSpark={(card) => {
-                setUserCredits(c => Math.max(0, c - 5));
-                setDeck(prev => [card, ...prev]);
-                setActiveCardIndex(0);
-                showToast(`[SPARK SENT: ⚡ REMATCHED WITH ${(card.characterName || card.name).toUpperCase()}!]`);
-              }}
             />
-          </div>
+          </aside>
         )}
 
-        {/* 🎴 CENTER STAGE: Authentic GachaSwipe Card Deck */}
-        <div className="swipe-container" style={{
-          width: '100%', maxWidth: '440px', height: '100dvh', maxHeight: '100dvh',
-          display: 'flex', flexDirection: 'column', position: 'relative', padding: '10px 14px 8px',
-          boxSizing: 'border-box', overflow: 'hidden', background: '#050308',
-          borderLeft: isDesktop ? '1px solid rgba(0, 229, 255, 0.15)' : 'none',
-          borderRight: isDesktop ? '1px solid rgba(0, 229, 255, 0.15)' : 'none',
-          boxShadow: '0 0 60px rgba(0, 229, 255, 0.15), inset 0 0 30px rgba(0,0,0,0.8)',
-          zIndex: 10
-        }}>
-          {/* Terminal Top Bar (1:1 with Screenshot 2) */}
-          <div className="swipe-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '6px', zIndex: 10, flexShrink: 0 }}>
-            {/* Left Cluster: TARGET Pill + SOULBOUND Button */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-              <div 
-                className="theme-pill"
-                onClick={() => { matrixAudio.playClick(); setIsThemeOpen(true); }}
-                title="Click to Switch Theme Matrix"
-                style={{ cursor: 'pointer', margin: 0 }}
-              >
-                <span style={{ fontWeight: 'bold', color: 'rgba(0,229,255,0.6)', marginRight: '4px', flexShrink: 0, fontSize: '11px' }}>&gt; TARGET:</span>
-                <div className="smart-scroll-box">
-                  <span className="smart-scroll-content" style={{ color: '#00E5FF', fontWeight: 800, fontSize: '11px', textShadow: '0 0 6px rgba(0,229,255,0.4)' }}>
-                    {selectedTheme.toUpperCase()}
-                  </span>
-                </div>
-              </div>
+        {/* ==================== CENTER PANEL: 3D SWIPE STAGE ==================== */}
+        <main className="flex-1 flex flex-col items-center justify-between p-4 relative overflow-hidden bg-[#050308]">
+          {/* Scanline & Hologram Ambience */}
+          <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,rgba(0,229,255,0.05)_0%,transparent_70%)]"></div>
 
-              {/* SOULBOUND Gradient Badge (Screenshot 2) */}
+          {/* Top Target & Mode Selector */}
+          <div className="w-full max-w-sm flex items-center justify-between gap-2 z-20 mb-2">
+            <button
+              onClick={() => setIsThemeOpen(true)}
+              className="flex items-center gap-1.5 text-xs bg-[#00E5FF]/10 text-[#00E5FF] px-3 py-1.5 rounded border border-[#00E5FF]/30 hover:bg-[#00E5FF]/20 transition-all font-bold tracking-wider"
+            >
+              <span>&gt; TARGET:</span>
+              <span className="text-white">{selectedContext.toUpperCase()}</span>
+            </button>
+
+            {/* Mode Switcher: Dating vs Music */}
+            <div className="flex items-center gap-1 bg-[#0B0914] p-0.5 rounded border border-white/10">
+              <button
+                onClick={() => setSwipeMode('dating')}
+                className={'px-2.5 py-1 text-xs rounded transition-all flex items-center gap-1 ' + (swipeMode === 'dating' ? 'bg-[#FF107A] text-white font-bold' : 'text-gray-400 hover:text-white')}
+              >
+                ❤️ DATING
+              </button>
               <button
                 onClick={() => {
-                  matrixAudio.playPowerup();
-                  showToast('[SOULBOUND: NEURAL LINK SYNCHRONIZED WITH MASTER]');
+                  setSwipeMode('music');
+                  if (beatQueue.length === 0) generateSongConcepts();
                 }}
-                style={{
-                  background: 'linear-gradient(135deg, #00E5FF 0%, #FF107A 100%)',
-                  border: 'none',
-                  borderRadius: '4px',
-                  color: '#fff',
-                  padding: '5px 10px',
-                  fontSize: '9.5px',
-                  fontWeight: 900,
-                  letterSpacing: '0.05em',
-                  cursor: 'pointer',
-                  boxShadow: '0 0 12px rgba(0, 229, 255, 0.4)',
-                  textShadow: '0 1px 4px rgba(0,0,0,0.6)',
-                  flexShrink: 0
-                }}
+                className={'px-2.5 py-1 text-xs rounded transition-all flex items-center gap-1 ' + (swipeMode === 'music' ? 'bg-[#00E5FF] text-black font-bold' : 'text-gray-400 hover:text-white')}
               >
-                SOULBOUND
-              </button>
-            </div>
-
-            {/* Right Cluster: Profile, Messages (with unread badge), Settings (Screenshot 2) */}
-            <div className="header-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
-              {/* Profile Toggle */}
-              <button 
-                className="header-icon-btn" 
-                onClick={() => {
-                  matrixAudio.playClick();
-                  if (isDesktop) setIsLeftPanelOpen(!isLeftPanelOpen);
-                  else setIsRosterOpen(true);
-                }}
-                title={isDesktop ? "Toggle Companion Roster" : "Companion Vault"}
-                style={{ color: '#00E5FF' }}
-              >
-                <UserIcon size={18} />
-              </button>
-
-              {/* Messages Toggle with Glowing Pink Unread Dot */}
-              <button 
-                className="header-icon-btn" 
-                onClick={() => {
-                  matrixAudio.playClick();
-                  if (isDesktop) {
-                    setRightPanelTab('chat');
-                    setIsRightPanelOpen(!isRightPanelOpen);
-                  } else {
-                    setIsRoleplayOpen(true);
-                  }
-                }}
-                title={isDesktop ? "Toggle Cyber Messenger" : "Open Messages"}
-                style={{ color: '#FF107A', position: 'relative' }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                </svg>
-                {/* Notification Badge Dot */}
-                <span style={{
-                  position: 'absolute', top: '-1px', right: '-2px', width: '8px', height: '8px',
-                  borderRadius: '50%', background: '#00E5FF', boxShadow: '0 0 8px #00E5FF'
-                }} />
-              </button>
-
-              {/* Settings Cog */}
-              <button 
-                className="header-icon-btn" 
-                onClick={() => {
-                  matrixAudio.playClick();
-                  if (isDesktop) {
-                    setRightPanelTab('settings');
-                    setIsRightPanelOpen(true);
-                  } else {
-                    setIsSettingsOpen(true);
-                  }
-                }}
-                title="Terminal Settings"
-                style={{ color: 'rgba(255,255,255,0.6)' }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                </svg>
+                <MusicIcon /> MUSIC
               </button>
             </div>
           </div>
 
-          {/* Expandable Specify Traits Accordion */}
-          <div style={{ marginBottom: '6px', flexShrink: 0, zIndex: 15 }}>
-            <div 
-              className={`bubble-tab ${isTraitsExpanded ? 'active' : ''}`}
-              onClick={() => { matrixAudio.playClick(); setIsTraitsExpanded(!isTraitsExpanded); }}
-              style={{ padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderRadius: '4px' }}
-            >
-              <span style={{ fontSize: '10px', fontWeight: 800 }}>&gt; SPECIFY_TRAITS ({selectedTraits.length}) + WARDROBE</span>
-              <span style={{ fontSize: '9px' }}>{isTraitsExpanded ? '▲' : '▼'}</span>
-            </div>
+          {/* Holographic Card Arena */}
+          <div
+            className="relative w-full max-w-sm flex-1 flex items-center justify-center my-auto min-h-[460px]"
+            style={{ perspective: '1000px' }}
+          >
+            {/* Active Deck Render with 3D Preservation */}
+            {activeDeck.length > 0 ? (
+              activeDeck
+                .slice(0, 3)
+                .map((card, index) => {
+                  const isTop = index === 0;
+                  const cardStyle = isTop
+                    ? {
+                        transform: 'translate(' + dragPos.x + 'px, ' + dragPos.y + 'px) rotate(' + rotation + 'deg) rotateY(' + rotateY + 'deg) rotateX(' + rotateX + 'deg)',
+                        transformStyle: 'preserve-3d',
+                        transition: isDragging ? 'none' : 'transform 0.35s cubic-bezier(.2,.8,.2,1)',
+                        zIndex: 10
+                      }
+                    : {
+                        transform: 'translateY(' + (index * 16) + 'px) scale(' + (1 - index * 0.045) + ')',
+                        transition: 'transform 0.35s cubic-bezier(.2,.8,.2,1)',
+                        zIndex: 10 - index,
+                        filter: 'saturate(0.92)'
+                      };
 
-            {isTraitsExpanded && (
-              <div style={{
-                background: 'rgba(0, 0, 0, 0.85)', border: '1px solid rgba(0, 229, 255, 0.25)',
-                borderTop: 'none', borderRadius: '0 0 6px 6px', padding: '10px',
-                display: 'flex', flexDirection: 'column', gap: '8px', backdropFilter: 'blur(8px)',
-                maxHeight: '220px', overflowY: 'auto'
-              }}>
-                {/* Persona Tags */}
-                <div>
-                  <span style={{ fontSize: '9px', color: '#00E5FF', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>&gt; PERSONALITY_MATRIX:</span>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                    {PRESET_TRAITS.map(t => {
-                      const active = selectedTraits.includes(t);
-                      return (
-                        <button
-                          key={t}
-                          onClick={() => toggleTrait(t)}
-                          style={{
-                            padding: '3px 8px', borderRadius: '4px', border: `1px solid ${active ? '#00E5FF' : 'rgba(255,255,255,0.15)'}`,
-                            background: active ? 'rgba(0, 229, 255, 0.2)' : 'rgba(255,255,255,0.03)',
-                            color: active ? '#00E5FF' : '#aaa', fontSize: '9px', fontWeight: 700, cursor: 'pointer',
-                            fontFamily: "ui-monospace, monospace"
-                          }}
-                        >
-                          {t}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Cyber Wardrobe */}
-                <div>
-                  <span style={{ fontSize: '9px', color: '#FF107A', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>&gt; CYBER_WARDROBE:</span>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                    {CYBER_WARDROBES.map(w => {
-                      const active = selectedWardrobe === w;
-                      return (
-                        <button
-                          key={w}
-                          onClick={() => { matrixAudio.playClick(); setSelectedWardrobe(w); }}
-                          style={{
-                            padding: '3px 8px', borderRadius: '4px', border: `1px solid ${active ? '#FF107A' : 'rgba(255,255,255,0.15)'}`,
-                            background: active ? 'rgba(255, 16, 122, 0.2)' : 'rgba(255,255,255,0.03)',
-                            color: active ? '#FF107A' : '#aaa', fontSize: '9px', fontWeight: 700, cursor: 'pointer',
-                            fontFamily: "ui-monospace, monospace"
-                          }}
-                        >
-                          {w}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Cyber Gear */}
-                <div>
-                  <span style={{ fontSize: '9px', color: '#FFB36B', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>&gt; FORGED_GEAR:</span>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                    {CYBER_GEAR.map(g => {
-                      const active = selectedGear === g;
-                      return (
-                        <button
-                          key={g}
-                          onClick={() => { matrixAudio.playClick(); setSelectedGear(g); }}
-                          style={{
-                            padding: '3px 8px', borderRadius: '4px', border: `1px solid ${active ? '#FFB36B' : 'rgba(255,255,255,0.15)'}`,
-                            background: active ? 'rgba(255, 179, 107, 0.2)' : 'rgba(255,255,255,0.03)',
-                            color: active ? '#FFB36B' : '#aaa', fontSize: '9px', fontWeight: 700, cursor: 'pointer',
-                            fontFamily: "ui-monospace, monospace"
-                          }}
-                        >
-                          {g}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Custom Input */}
-                <input
-                  type="text"
-                  placeholder="Custom keywords (e.g. dragon horns, hacker goggles)..."
-                  value={customTraitInput}
-                  onChange={e => setCustomTraitInput(e.target.value)}
-                  style={{
-                    width: '100%', padding: '6px 10px', borderRadius: '4px',
-                    background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(0,229,255,0.2)',
-                    color: '#fff', fontSize: '10px', outline: 'none', boxSizing: 'border-box',
-                    fontFamily: "ui-monospace, monospace"
-                  }}
-                />
-              </div>
+                  return (
+                    <SwipeCard
+                      key={card.id || card.name + index}
+                      waifu={card}
+                      preferences={preferences}
+                      style={cardStyle}
+                      interactive={isTop}
+                      likeOpacity={isTop ? likeOpacity : 0}
+                      passOpacity={isTop ? passOpacity : 0}
+                      onPointerDown={onPointerDown}
+                      onPointerMove={onPointerMove}
+                      onPointerUp={onPointerUp}
+                      fallbackImage={lastSwipedImage}
+                      enableAtmosphere={true}
+                      onOpenGachaFans={(w) => {
+                        setActiveGachaFansCompanion(w);
+                        if (isDesktop) setRightPanelTab('gachafans');
+                        else setIsGachaFansOpen(true);
+                      }}
+                      onOpenMatrix={() => setIsMatrixShooterOpen(true)}
+                    />
+                  );
+                })
+                .reverse()
+            ) : (
+              <LoadingCard
+                top={true}
+                generation={currentGeneration}
+                onRetry={() => generateNextWaifu()}
+                emptyQueueAndNoAuto={false}
+                onForceGenerate={() => generateNextWaifu()}
+                fallbackImage={lastSwipedImage}
+              />
             )}
           </div>
 
-          {/* ✨ Radio / Tease / Sparks Bar (1:1 with Screenshot 2) ✨ */}
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '5px 10px', marginBottom: '8px', background: 'rgba(0, 229, 255, 0.03)',
-            border: '1px solid rgba(0, 229, 255, 0.12)', borderRadius: '4px', flexShrink: 0
-          }}>
-            {/* Left: Library */}
-            <div 
-              onClick={() => showToast('[AUDIO MATRIX: CONNECTED TO SYNTH LIBRARY]')}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#B533FF', fontSize: '10.5px', fontWeight: 'bold', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", cursor: 'pointer' }}
-            >
-              <MusicIcon />
-              <span>LIBRARY</span>
-            </div>
-
-            {/* Center: Tease */}
-            <div style={{ flex: 1, margin: '0 10px', textAlign: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-              <span style={{
-                fontSize: '10.5px', fontStyle: 'italic', color: '#FF107A',
-                fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
-                textShadow: '0 0 6px rgba(255, 16, 122, 0.4)'
-              }}>
-                hope you're using an incognito window, Master~
-              </span>
-            </div>
-
-            {/* Right: Sparks Token Button */}
+          {/* Bottom Swipe Controls */}
+          <div className="w-full max-w-sm flex items-center justify-around gap-4 z-20 mt-3 pt-2 border-t border-[#00E5FF]/15">
+            {/* Rewind */}
             <button
-              onClick={() => showToast(`[NEURAL SPARKS: ${userCredits} TOKENS AVAILABLE]`)}
-              style={{
-                background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', gap: '4px',
-                color: '#00E5FF', fontSize: '11px', fontWeight: 800, fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
-                cursor: 'pointer', textShadow: '0 0 6px rgba(0, 229, 255, 0.4)', padding: 0
-              }}
-            >
-              <SparkIcon />
-              <span>{userCredits}</span>
-            </button>
-          </div>
-
-          {/* Card Stage - Fits Viewport Height with JRPG Speech Bubble */}
-          <div style={{
-            flex: 1, position: 'relative', minHeight: 0,
-            display: 'flex', justifyContent: 'center', alignItems: 'center'
-          }}>
-            {(() => {
-              const activeWaifu = currentCard || PAUSE_CARD;
-              return (
-                <div
-                  onPointerDown={handlePointerDown}
-                  style={{
-                    width: '100%', height: '100%', position: 'relative',
-                    cursor: isDragging ? 'grabbing' : 'grab',
-                    transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${cardRotation}deg)`,
-                    transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                    userSelect: 'none', touchAction: 'none'
-                  }}
-                >
-                  {/* Floating JRPG Dialogue Bubble above card */}
-                  {currentCard && (
-                    <JrpgSpeechBubble
-                      text={companionSpeech}
-                      pColor={currentCard.themeColor || '#FF107A'}
-                    />
-                  )}
-
-                  <SwipeCard
-                    waifu={activeWaifu}
-                    preferences={{}}
-                    interactive={true}
-                    likeOpacity={likeOpacity}
-                    passOpacity={passOpacity}
-                    enableAtmosphere={true}
-                    onRegenImage={handleRegenImage}
-                    onOpenGachaFans={handleOpenGachaFans}
-                    style={{ width: '100%', height: '100%' }}
-                  />
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Bottom Control Deck (1:1 with Screenshot 2) */}
-          <div style={{
-            display: 'flex', justifyContent: 'space-around', alignItems: 'center',
-            padding: '8px 0 12px', flexShrink: 0, zIndex: 10, width: '100%'
-          }}>
-            {/* 1. Profile Square Button (Cyan) */}
-            <button
-              onClick={() => {
-                matrixAudio.playClick();
-                if (isDesktop) setIsLeftPanelOpen(!isLeftPanelOpen);
-                else setIsRosterOpen(true);
-              }}
-              title="Character Matrix"
-              style={{
-                width: '42px', height: '42px', borderRadius: '12px',
-                background: 'rgba(0, 229, 255, 0.15)', border: '1px solid #00E5FF',
-                color: '#00E5FF', display: 'grid', placeItems: 'center',
-                cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 0 15px rgba(0,229,255,0.2)',
-                flexShrink: 0
-              }}
-            >
-              <UserIcon size={18} />
-            </button>
-
-            {/* 2. Pass Button (X) */}
-            <button
-              onClick={() => handleSwipe('pass')}
-              title="Pass (Left Arrow / A)"
-              className="control-btn pass"
-              style={{ width: '58px', height: '58px', borderRadius: '12px' }}
-            >
-              <XIcon size={24} />
-            </button>
-
-            {/* 3. Rewind Button */}
-            <button
-              onClick={handleRewind}
-              title="Rewind (R)"
-              className="control-btn rewind"
-              style={{ width: '44px', height: '44px', borderRadius: '12px' }}
+              onClick={rewindSwipe}
+              className="w-12 h-12 rounded-full bg-[#111] border border-gray-600 text-yellow-400 flex items-center justify-center hover:bg-yellow-400/20 hover:border-yellow-400 transition-all shadow-lg active:scale-95"
+              title="Rewind Last Pass"
             >
               <RewindIcon />
             </button>
 
-            {/* 4. Like Button (Heart) */}
+            {/* Pass */}
             <button
-              onClick={() => handleSwipe('like')}
-              title="Bond / Like (Right Arrow / D)"
-              className="control-btn like"
-              style={{ width: '58px', height: '58px', borderRadius: '12px' }}
+              onClick={() => {
+                if (currentCard) {
+                  swipeMode === 'music' ? handleMusicSwipe('left', currentCard) : processSwipe('left', currentCard);
+                }
+              }}
+              className="w-14 h-14 rounded-full bg-[#111] border-2 border-[#FF3366] text-[#FF3366] flex items-center justify-center hover:bg-[#FF3366]/20 transition-all shadow-lg active:scale-95 text-xl"
+              title="Pass"
+            >
+              <XIcon size={24} />
+            </button>
+
+            {/* Boost / Superlike */}
+            <button
+              onClick={() => {
+                if (sparkTokens >= 1 && currentCard) {
+                  setSparkTokens((s) => s - 1);
+                  showToast('⚡ SUPERLIKE BOOSTED: ' + (currentCard.name || '').toUpperCase());
+                  processSwipe('right', currentCard);
+                } else {
+                  showToast('Not enough Spark Tokens! ⚡');
+                }
+              }}
+              className="w-12 h-12 rounded-full bg-[#111] border border-[#00FF9D] text-[#00FF9D] flex items-center justify-center hover:bg-[#00FF9D]/20 transition-all shadow-lg active:scale-95"
+              title="Superlike (1 Spark)"
+            >
+              <SparkIcon />
+            </button>
+
+            {/* Like / Match */}
+            <button
+              onClick={() => {
+                if (currentCard) {
+                  swipeMode === 'music' ? handleMusicSwipe('right', currentCard) : processSwipe('right', currentCard);
+                }
+              }}
+              className="w-14 h-14 rounded-full bg-[#111] border-2 border-[#00E5FF] text-[#00E5FF] flex items-center justify-center hover:bg-[#00E5FF]/20 transition-all shadow-lg active:scale-95 text-xl"
+              title="Match / Like"
             >
               <HeartIcon />
             </button>
-
-            {/* 5. Music Button */}
-            <button
-              onClick={() => {
-                matrixAudio.playClick();
-                handleToggleMute();
-              }}
-              title="Audio Matrix Toggle"
-              style={{
-                width: '42px', height: '42px', borderRadius: '12px',
-                background: !isMuted ? 'rgba(181, 51, 255, 0.15)' : 'transparent',
-                border: !isMuted ? '1px solid #B533FF' : '1px solid rgba(255,255,255,0.1)',
-                color: !isMuted ? '#B533FF' : '#555', display: 'grid', placeItems: 'center',
-                cursor: 'pointer', transition: 'all 0.2s',
-                boxShadow: !isMuted ? '0 0 15px rgba(181, 51, 255, 0.2)' : 'none',
-                flexShrink: 0
-              }}
-            >
-              <MusicIcon />
-            </button>
           </div>
-        </div>
 
-        {/* 💻 RIGHT PANEL: Live Cyberdeck Terminal (Chat / GachaFans / Settings) (Desktop / Landscape) */}
-        {isDesktop && isRightPanelOpen && (
-          <div style={{
-            width: '380px', height: '100dvh', flexShrink: 0, zIndex: 20,
-            display: 'flex', flexDirection: 'column', background: 'rgba(5, 3, 8, 0.95)',
-            borderLeft: '1px solid rgba(0, 229, 255, 0.15)', position: 'relative'
-          }}>
-            {/* Tab Navigation Header */}
-            <div style={{
-              display: 'flex', borderBottom: '1px solid rgba(0, 229, 255, 0.2)',
-              background: 'rgba(0, 229, 255, 0.04)', flexShrink: 0
-            }}>
+          {/* Floating Cassette Deck / Music HUD */}
+          <GlobalMusicPlayer
+            tape={activeTape || { name: 'Ace-Step Cyber BGM', genre: 'Synthwave', audioUrl: '' }}
+            archive={[]}
+            onSelectTape={(t) => setActiveTape(t)}
+            onClose={() => setActiveTape(null)}
+          />
+        </main>
+
+        {/* ==================== RIGHT PANEL: MESSENGER & EXTRAS ==================== */}
+        {isDesktop && (
+          <aside className="w-96 border-l border-[#00E5FF]/20 bg-[#07050E] flex flex-col z-30">
+            {/* Panel Tabs Header */}
+            <div className="h-12 border-b border-[#00E5FF]/20 bg-[#0B0914] flex items-center justify-around px-2">
               <button
-                onClick={() => { matrixAudio.playClick(); setRightPanelTab('chat'); }}
-                style={{
-                  flex: 1, padding: '10px 4px', border: 'none',
-                  background: rightPanelTab === 'chat' ? 'rgba(0, 229, 255, 0.12)' : 'transparent',
-                  borderBottom: rightPanelTab === 'chat' ? '2px solid #00E5FF' : 'none',
-                  color: rightPanelTab === 'chat' ? '#00E5FF' : '#888',
-                  fontSize: '11px', fontWeight: 800, cursor: 'pointer',
-                  fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace"
-                }}
+                onClick={() => setRightPanelTab('chat')}
+                className={'flex-1 py-2 text-xs font-bold transition-all border-b-2 ' + (rightPanelTab === 'chat' ? 'text-[#00E5FF] border-[#00E5FF]' : 'text-gray-400 border-transparent hover:text-white')}
               >
-                💬 MESSENGER
+                💬 CHAT
               </button>
-
               <button
-                onClick={() => { matrixAudio.playClick(); setRightPanelTab('gachafans'); }}
-                style={{
-                  flex: 1, padding: '10px 4px', border: 'none',
-                  background: rightPanelTab === 'gachafans' ? 'rgba(255, 16, 122, 0.12)' : 'transparent',
-                  borderBottom: rightPanelTab === 'gachafans' ? '2px solid #FF107A' : 'none',
-                  color: rightPanelTab === 'gachafans' ? '#FF107A' : '#888',
-                  fontSize: '11px', fontWeight: 800, cursor: 'pointer',
-                  fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace"
-                }}
+                onClick={() => setRightPanelTab('group')}
+                className={'flex-1 py-2 text-xs font-bold transition-all border-b-2 ' + (rightPanelTab === 'group' ? 'text-[#FF107A] border-[#FF107A]' : 'text-gray-400 border-transparent hover:text-white')}
               >
-                ⭐ GACHAFANS
+                👥 GROUP
               </button>
-
               <button
-                onClick={() => { matrixAudio.playClick(); setRightPanelTab('settings'); }}
-                style={{
-                  flex: 1, padding: '10px 4px', border: 'none',
-                  background: rightPanelTab === 'settings' ? 'rgba(245, 166, 35, 0.12)' : 'transparent',
-                  borderBottom: rightPanelTab === 'settings' ? '2px solid #f5a623' : 'none',
-                  color: rightPanelTab === 'settings' ? '#f5a623' : '#888',
-                  fontSize: '11px', fontWeight: 800, cursor: 'pointer',
-                  fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace"
-                }}
+                onClick={() => setRightPanelTab('gachafans')}
+                className={'flex-1 py-2 text-xs font-bold transition-all border-b-2 ' + (rightPanelTab === 'gachafans' ? 'text-[#FFD700] border-[#FFD700]' : 'text-gray-400 border-transparent hover:text-white')}
               >
-                ⚙️ SETTINGS
+                ⭐ FANS
               </button>
-
               <button
-                onClick={() => setIsRightPanelOpen(false)}
-                title="Collapse Right Terminal"
-                style={{
-                  background: 'transparent', border: 'none', color: '#666',
-                  padding: '0 8px', cursor: 'pointer', fontSize: '12px'
-                }}
+                onClick={() => setRightPanelTab('settings')}
+                className={'flex-1 py-2 text-xs font-bold transition-all border-b-2 ' + (rightPanelTab === 'settings' ? 'text-[#00FF9D] border-[#00FF9D]' : 'text-gray-400 border-transparent hover:text-white')}
               >
-                ▶
+                ⚙️ OPTS
               </button>
             </div>
 
-            {/* Tab Contents */}
-            <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+            {/* Panel Body */}
+            <div className="flex-1 overflow-hidden relative">
               {rightPanelTab === 'chat' && (
                 <CyberMessenger
                   isEmbedded={true}
-                  companion={activeRoleplayCompanion}
-                  userCredits={userCredits}
-                  onSpeechUpdate={setCompanionSpeech}
-                  onClose={() => setIsRightPanelOpen(false)}
+                  companion={activeRoleplayCompanion || currentCard}
+                  onClose={() => {}}
+                  onShowToast={showToast}
+                />
+              )}
+
+              {rightPanelTab === 'group' && (
+                <CyberGroupChat
+                  isEmbedded={true}
+                  activeRoster={Object.values(inbox).map((i) => i.waifu)}
                   onShowToast={showToast}
                 />
               )}
 
               {rightPanelTab === 'gachafans' && (
-                <div style={{ height: '100%', position: 'relative' }}>
-                  <GachaFansModal
-                    isOpen={true}
-                    companion={activeGachaFansCompanion || currentCard}
-                    onClose={() => setRightPanelTab('chat')}
-                    onLaunchHack={() => setIsMatrixShooterOpen(true)}
-                    userCredits={userCredits}
-                    setUserCredits={setUserCredits}
-                    onShowToast={showToast}
-                  />
-                </div>
+                <GachaFansModal
+                  isOpen={true}
+                  companion={activeGachaFansCompanion || currentCard}
+                  onClose={() => setRightPanelTab('chat')}
+                  onLaunchHack={() => setIsMatrixShooterOpen(true)}
+                  userCredits={sparkTokens}
+                  setUserCredits={setSparkTokens}
+                  onShowToast={showToast}
+                />
               )}
 
               {rightPanelTab === 'settings' && (
-                <div style={{ height: '100%', position: 'relative' }}>
-                  <SettingsModal
-                    isOpen={true}
-                    onClose={() => setRightPanelTab('chat')}
-                    onShowToast={showToast}
-                    onResetDeck={() => {
-                      setActiveCardIndex(0);
-                      setDeck(STARTER_CARDS);
-                    }}
-                  />
-                </div>
+                <SettingsModal
+                  isOpen={true}
+                  onClose={() => setRightPanelTab('chat')}
+                  onShowToast={showToast}
+                  onResetDeck={() => {
+                    setQueue(STARTER_CARDS);
+                    showToast('Queue restored to starter deck!');
+                  }}
+                />
               )}
             </div>
-          </div>
+          </aside>
         )}
       </div>
 
-      {/* 📱 Mobile Modals (Rendered as Overlays when not on Desktop) */}
+      {/* 📱 MOBILE RESPONSIVE MODALS (For phone/tablet viewing) */}
       {!isDesktop && (
         <>
-          {isRoleplayOpen && (
-            <CyberMessenger
-              isEmbedded={false}
-              companion={activeRoleplayCompanion || currentCard}
-              onClose={() => setIsRoleplayOpen(false)}
-              onSpeechUpdate={setCompanionSpeech}
-            />
-          )}
+          {/* Mobile Bottom Navigation Bar */}
+          <nav className="h-14 border-t border-[#00E5FF]/20 bg-[#0B0914] flex items-center justify-around px-4 z-40">
+            <button
+              onClick={() => setIsRosterOpen(true)}
+              className="flex flex-col items-center gap-1 text-gray-400 hover:text-[#00E5FF]"
+            >
+              <UserIcon size={18} />
+              <span className="text-[10px]">Roster</span>
+            </button>
+            <button
+              onClick={() => setIsRoleplayOpen(true)}
+              className="flex flex-col items-center gap-1 text-gray-400 hover:text-[#00E5FF]"
+            >
+              <span>💬</span>
+              <span className="text-[10px]">Chat</span>
+            </button>
+            <button
+              onClick={() => setIsGachaFansOpen(true)}
+              className="flex flex-col items-center gap-1 text-gray-400 hover:text-[#FFD700]"
+            >
+              <span>⭐</span>
+              <span className="text-[10px]">Fans</span>
+            </button>
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="flex flex-col items-center gap-1 text-gray-400 hover:text-white"
+            >
+              <span>⚙️</span>
+              <span className="text-[10px]">Config</span>
+            </button>
+          </nav>
 
           {isRosterOpen && (
             <RosterPanel
               isEmbedded={false}
               activeCard={currentCard}
+              history={sessionHistory}
+              swipes={swipes}
+              sparks={sparkTokens}
               onClose={() => setIsRosterOpen(false)}
-              onSelectCard={(card) => {
-                setDeck(prev => [card, ...prev]);
-                setActiveCardIndex(0);
+              onSelectCard={(c) => {
+                setActiveRoleplayCompanion(c);
                 setIsRosterOpen(false);
-                showToast(`[ROSTER: LOADED ${card.characterName.toUpperCase()} INTO STAGE]`);
+                setIsRoleplayOpen(true);
               }}
               onOpenChat={(c) => {
+                setActiveRoleplayCompanion(c);
                 setIsRosterOpen(false);
-                handleOpenChat(c);
+                setIsRoleplayOpen(true);
               }}
               onOpenGachaFans={(c) => {
+                setActiveGachaFansCompanion(c);
                 setIsRosterOpen(false);
-                handleOpenGachaFans(c);
+                setIsGachaFansOpen(true);
               }}
               onOpenSettings={() => {
                 setIsRosterOpen(false);
@@ -1214,6 +1001,15 @@ export default function App() {
             />
           )}
 
+          {isRoleplayOpen && (
+            <CyberMessenger
+              isEmbedded={false}
+              companion={activeRoleplayCompanion || currentCard}
+              onClose={() => setIsRoleplayOpen(false)}
+              onShowToast={showToast}
+            />
+          )}
+
           {isGachaFansOpen && (
             <GachaFansModal
               isOpen={true}
@@ -1223,52 +1019,84 @@ export default function App() {
                 setIsGachaFansOpen(false);
                 setIsMatrixShooterOpen(true);
               }}
-              userCredits={userCredits}
-              setUserCredits={setUserCredits}
+              userCredits={sparkTokens}
+              setUserCredits={setSparkTokens}
               onShowToast={showToast}
-            />
-          )}
-
-          {isSettingsOpen && (
-            <SettingsModal
-              isOpen={true}
-              onClose={() => setIsSettingsOpen(false)}
-              onShowToast={showToast}
-              onResetDeck={() => {
-                setActiveCardIndex(0);
-                setDeck(STARTER_CARDS);
-              }}
             />
           )}
         </>
       )}
 
-      {/* Global Modals (Work everywhere) */}
+      {/* Global Cloud Vault Modal */}
       <CloudVault isOpen={isCloudVaultOpen} onClose={() => setIsCloudVaultOpen(false)} />
-      
+
+      {/* Global Theme Selector Modal */}
       <ThemeModal
         isOpen={isThemeOpen}
         onClose={() => setIsThemeOpen(false)}
-        selectedTheme={selectedTheme}
+        selectedTheme={selectedContext}
         onSelectTheme={(th) => {
-          setSelectedTheme(th);
-          showToast(`[MATRIX: TARGET SHIFTED TO ${th.toUpperCase()}]`);
+          setSelectedContext(th);
+          showToast('[MATRIX TARGET SHIFTED: ' + th.toUpperCase() + ']');
         }}
       />
 
-      {/* Matrix Arcade Shooter Fullscreen Overlay */}
+      {/* Chimera Audio Studio Modal */}
+      {isDawOpen && (
+        <div className="fixed inset-0 z-50 bg-[#050308]/95 backdrop-blur-md flex flex-col p-4 overflow-y-auto">
+          <div className="flex items-center justify-between border-b border-[#00E5FF]/30 pb-3 mb-4 max-w-4xl mx-auto w-full">
+            <h2 className="text-[#00E5FF] font-bold tracking-widest text-lg flex items-center gap-2">
+              <span>🧬</span> ACE-STEP CHIMERA AUDIO MATRIX
+            </h2>
+            <button
+              onClick={() => setIsDawOpen(false)}
+              className="text-gray-400 hover:text-white px-3 py-1 rounded border border-white/20 text-xs font-bold"
+            >
+              [ CLOSE_STUDIO ]
+            </button>
+          </div>
+          <div className="max-w-4xl mx-auto w-full flex-1">
+            <ChimeraEngine
+              dawState={dawState}
+              setDawState={setDawState}
+              tColor="#00E5FF"
+              enableMp3Compression={true}
+              setEnableMp3Compression={() => {}}
+              restoreDefaults={() => {}}
+              handleMikaGenerateTags={() => {}}
+              toggleTag={() => {}}
+              updateStructTag={() => {}}
+              handleAiTagCategory={() => {}}
+              restoreLyricsDefaults={() => {}}
+              handleMikaGenerateLyrics={() => {}}
+              updateStructLyric={() => {}}
+              handleAiRewriteLyric={() => {}}
+              setTapeArchive={() => {}}
+              showConfirm={() => {}}
+              showToast={showToast}
+              handleSaveSession={() => {}}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Matrix Arcade Shooter Modal */}
       {isMatrixShooterOpen && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 100090, background: '#050308',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
-        }}>
+        <div className="fixed inset-0 z-50 bg-[#050308] flex items-center justify-center">
           <MatrixShooter
             waifu={currentCard}
             themeColor={currentCard?.themeColor || '#00E5FF'}
-            tiers={[{ name: 'Phase 1', hp: 100 }, { name: 'Phase 2', hp: 250 }, { name: 'Matrix Overlord', hp: 500 }]}
-            themeConcept={{ name: `${selectedTheme.toUpperCase()} SECURITY OVERLOAD` }}
+            tiers={[
+              { name: 'Phase 1: Firewall Intrusion', hp: 100 },
+              { name: 'Phase 2: Neural Icebreaker', hp: 250 },
+              { name: 'Matrix Overlord Core', hp: 500 }
+            ]}
+            themeConcept={{ name: selectedContext.toUpperCase() + ' SECURITY CLUSTER' }}
             progressState={{ phase: 1, maxPhase: 3 }}
-            onExit={handleMinigameComplete}
+            onExit={(result) => {
+              setIsMatrixShooterOpen(false);
+              showToast('🎮 Arcade Run Completed! Score: ' + (result?.score || 1000));
+            }}
             onAbort={() => setIsMatrixShooterOpen(false)}
             isReplay={false}
             bgImages={[]}
