@@ -147,6 +147,23 @@ const STARTER_CARDS = [
   }
 ];
 
+
+const PAUSE_CARD = {
+  id: 'intro',
+  name: 'Engine Paused',
+  characterName: 'Engine Paused',
+  age: '⏸',
+  gradient: ['#171226', '#00E5FF'],
+  description: 'Generation is holding. Check your messages, tweak your settings, and swipe when ready!',
+  personality: 'System proxy.',
+  tags: ['Holding', 'Swipe', 'To Resume'],
+  likes: ['Clean Code', 'Neural Links'],
+  dislikes: ['Data Corruption'],
+  quirks: ['Holding memory buffer'],
+  imageUrl: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzBCMDkxNCIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjMwIiBmaWxsPSJub25lIiBzdHJva2U9IiMwMEU1RkYiIHN0cm9rZS13aWR0aD0iNCIvPjxwYXRoIGQ9Ik0zOCwzNSBoOCB2MzAgaC04IHogTTU0LDM1IGg4IHYzMCBoLTggeiIgZmlsbD0iIzAwRTVGRiIvPjwvc3ZnPg==",
+  greeting: 'Ready when you are, Master!'
+};
+
 const PRESET_TRAITS = ['Catgirl', 'Tsundere', 'Yandere', 'Cyberpunk', 'Kuudere', 'Goddess', 'Maid', 'Smug'];
 const CYBER_WARDROBES = ['Techwear Hoodie', 'Cyber Kimono', 'Pilot Bodysuit', 'Maid Uniform', 'Tactical Armor', 'Bunny Suit'];
 const CYBER_GEAR = ['Laser Katana', 'Neural Cyberdeck', 'Drone Companion', 'Plasma Rifle', 'Holo-Visor'];
@@ -636,10 +653,14 @@ export default function App() {
             <RosterPanel
               isEmbedded={true}
               activeCard={currentCard}
+              history={history}
+              swipes={totalSwipes || 159}
+              sparks={userCredits}
+              userName="Master"
               onSelectCard={(card) => {
                 setDeck(prev => [card, ...prev]);
                 setActiveCardIndex(0);
-                showToast(`[ROSTER: LOADED ${card.characterName.toUpperCase()} INTO DECK]`);
+                showToast(`[ROSTER: LOADED ${(card.characterName || card.name).toUpperCase()} INTO DECK]`);
               }}
               onOpenChat={handleOpenChat}
               onOpenGachaFans={handleOpenGachaFans}
@@ -648,6 +669,12 @@ export default function App() {
                 setIsRightPanelOpen(true);
               }}
               onOpenCloudVault={() => setIsCloudVaultOpen(true)}
+              onSendSpark={(card) => {
+                setUserCredits(c => Math.max(0, c - 5));
+                setDeck(prev => [card, ...prev]);
+                setActiveCardIndex(0);
+                showToast(`[SPARK SENT: ⚡ REMATCHED WITH ${(card.characterName || card.name).toUpperCase()}!]`);
+              }}
             />
           </div>
         )}
@@ -662,93 +689,66 @@ export default function App() {
           boxShadow: '0 0 60px rgba(0, 229, 255, 0.15), inset 0 0 30px rgba(0,0,0,0.8)',
           zIndex: 10
         }}>
-          {/* Terminal Top Bar */}
-          <div className="swipe-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', zIndex: 10, flexShrink: 0 }}>
-            {/* Target Theme Pill */}
-            <div 
-              className="theme-pill"
-              onClick={() => { matrixAudio.playClick(); setIsThemeOpen(true); }}
-              title="Click to Switch Theme Matrix"
-              style={{ cursor: 'pointer' }}
-            >
-              <span style={{ fontWeight: 'bold', color: 'rgba(0,229,255,0.6)', marginRight: '4px', flexShrink: 0 }}>&gt; TARGET:</span>
-              <div className="smart-scroll-box">
-                <span className="smart-scroll-content" style={{ color: '#00E5FF', fontWeight: 'bold', textShadow: '0 0 6px rgba(0,229,255,0.4)' }}>
-                  {selectedTheme.toUpperCase()}
-                </span>
+          {/* Terminal Top Bar (1:1 with Screenshot 2) */}
+          <div className="swipe-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '6px', zIndex: 10, flexShrink: 0 }}>
+            {/* Left Cluster: TARGET Pill + SOULBOUND Button */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+              <div 
+                className="theme-pill"
+                onClick={() => { matrixAudio.playClick(); setIsThemeOpen(true); }}
+                title="Click to Switch Theme Matrix"
+                style={{ cursor: 'pointer', margin: 0 }}
+              >
+                <span style={{ fontWeight: 'bold', color: 'rgba(0,229,255,0.6)', marginRight: '4px', flexShrink: 0, fontSize: '11px' }}>&gt; TARGET:</span>
+                <div className="smart-scroll-box">
+                  <span className="smart-scroll-content" style={{ color: '#00E5FF', fontWeight: 800, fontSize: '11px', textShadow: '0 0 6px rgba(0,229,255,0.4)' }}>
+                    {selectedTheme.toUpperCase()}
+                  </span>
+                </div>
               </div>
+
+              {/* SOULBOUND Gradient Badge (Screenshot 2) */}
+              <button
+                onClick={() => {
+                  matrixAudio.playPowerup();
+                  showToast('[SOULBOUND: NEURAL LINK SYNCHRONIZED WITH MASTER]');
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, #00E5FF 0%, #FF107A 100%)',
+                  border: 'none',
+                  borderRadius: '4px',
+                  color: '#fff',
+                  padding: '5px 10px',
+                  fontSize: '9.5px',
+                  fontWeight: 900,
+                  letterSpacing: '0.05em',
+                  cursor: 'pointer',
+                  boxShadow: '0 0 12px rgba(0, 229, 255, 0.4)',
+                  textShadow: '0 1px 4px rgba(0,0,0,0.6)',
+                  flexShrink: 0
+                }}
+              >
+                SOULBOUND
+              </button>
             </div>
 
-            {/* Algorithm Tastes Meter */}
-            <div 
-              className="tastes-meter-container" 
-              title="Algorithm Affinity Sync"
-              style={{ cursor: 'pointer' }}
-              onClick={() => showToast(`[ALGORITHM: ${tasteSyncPct}% AFFINITY SYNC (${totalSwipes} SWIPES)]`)}
-            >
-              <div className="tastes-meter-fill" style={{ width: `${tasteSyncPct}%` }} />
-              <div className="tastes-meter-text">
-                {tasteSyncPct}% SYNC
-              </div>
-            </div>
-
-            {/* Action Icons Header */}
-            <div className="header-actions" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              {/* Audio Mute Toggle */}
-              <button 
-                className="header-icon-btn" 
-                onClick={handleToggleMute}
-                title={isMuted ? "Unmute Matrix Audio (M)" : "Mute Matrix Audio (M)"}
-                style={{ color: isMuted ? '#666' : '#00E5FF' }}
-              >
-                <span style={{ fontSize: '15px' }}>{isMuted ? '🔇' : '🔊'}</span>
-              </button>
-
-              {/* Matrix Arcade Shooter */}
-              <button 
-                className="header-icon-btn" 
-                onClick={() => { matrixAudio.playClick(); setIsMatrixShooterOpen(true); }}
-                title="Launch Matrix Hacking Shooter"
-                style={{ color: '#00FF41' }}
-              >
-                <span style={{ fontSize: '15px' }}>👾</span>
-              </button>
-
-              {/* GachaFans VIP Portal Shortcut */}
-              <button 
-                className="header-icon-btn" 
-                onClick={() => handleOpenGachaFans(currentCard)}
-                title="Open GachaFans VIP Portal"
-                style={{ color: '#FF107A' }}
-              >
-                <span style={{ fontSize: '15px' }}>⭐</span>
-              </button>
-
-              {/* Matches / Roster Archive (Mobile trigger or desktop panel toggle) */}
+            {/* Right Cluster: Profile, Messages (with unread badge), Settings (Screenshot 2) */}
+            <div className="header-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+              {/* Profile Toggle */}
               <button 
                 className="header-icon-btn" 
                 onClick={() => {
                   matrixAudio.playClick();
-                  if (isDesktop) {
-                    setIsLeftPanelOpen(!isLeftPanelOpen);
-                  } else {
-                    setIsRosterOpen(true);
-                  }
+                  if (isDesktop) setIsLeftPanelOpen(!isLeftPanelOpen);
+                  else setIsRosterOpen(true);
                 }}
-                title={isDesktop ? "Toggle Left Roster Panel" : "Companion Vault Archive"}
-                style={{ color: '#00E5FF', position: 'relative' }}
+                title={isDesktop ? "Toggle Companion Roster" : "Companion Vault"}
+                style={{ color: '#00E5FF' }}
               >
-                <span style={{ fontSize: '15px' }}>🎴</span>
-                <span style={{
-                  position: 'absolute', top: '-2px', right: '-4px', background: '#ff107a',
-                  color: '#fff', fontSize: '9px', fontWeight: 900, padding: '1px 5px',
-                  borderRadius: '8px', border: '1px solid #000'
-                }}>
-                  {cardCount}
-                </span>
+                <UserIcon size={18} />
               </button>
 
-              {/* Live Hologram Roleplay Chat (Mobile trigger or desktop panel toggle) */}
+              {/* Messages Toggle with Glowing Pink Unread Dot */}
               <button 
                 className="header-icon-btn" 
                 onClick={() => {
@@ -760,13 +760,20 @@ export default function App() {
                     setIsRoleplayOpen(true);
                   }
                 }}
-                title={isDesktop ? "Toggle Right Cyber Messenger" : "Open Live Hologram Link"}
-                style={{ color: '#FF107A' }}
+                title={isDesktop ? "Toggle Cyber Messenger" : "Open Messages"}
+                style={{ color: '#FF107A', position: 'relative' }}
               >
-                <span style={{ fontSize: '15px' }}>💬</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                {/* Notification Badge Dot */}
+                <span style={{
+                  position: 'absolute', top: '-1px', right: '-2px', width: '8px', height: '8px',
+                  borderRadius: '50%', background: '#00E5FF', boxShadow: '0 0 8px #00E5FF'
+                }} />
               </button>
 
-              {/* Settings / Cloud Vault */}
+              {/* Settings Cog */}
               <button 
                 className="header-icon-btn" 
                 onClick={() => {
@@ -779,9 +786,12 @@ export default function App() {
                   }
                 }}
                 title="Terminal Settings"
-                style={{ color: '#FFB36B' }}
+                style={{ color: 'rgba(255,255,255,0.6)' }}
               >
-                <span style={{ fontSize: '15px' }}>⚙️</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
               </button>
             </div>
           </div>
@@ -893,126 +903,160 @@ export default function App() {
             )}
           </div>
 
+          {/* ✨ Radio / Tease / Sparks Bar (1:1 with Screenshot 2) ✨ */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '5px 10px', marginBottom: '8px', background: 'rgba(0, 229, 255, 0.03)',
+            border: '1px solid rgba(0, 229, 255, 0.12)', borderRadius: '4px', flexShrink: 0
+          }}>
+            {/* Left: Library */}
+            <div 
+              onClick={() => showToast('[AUDIO MATRIX: CONNECTED TO SYNTH LIBRARY]')}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#B533FF', fontSize: '10.5px', fontWeight: 'bold', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", cursor: 'pointer' }}
+            >
+              <MusicIcon />
+              <span>LIBRARY</span>
+            </div>
+
+            {/* Center: Tease */}
+            <div style={{ flex: 1, margin: '0 10px', textAlign: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+              <span style={{
+                fontSize: '10.5px', fontStyle: 'italic', color: '#FF107A',
+                fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
+                textShadow: '0 0 6px rgba(255, 16, 122, 0.4)'
+              }}>
+                hope you're using an incognito window, Master~
+              </span>
+            </div>
+
+            {/* Right: Sparks Token Button */}
+            <button
+              onClick={() => showToast(`[NEURAL SPARKS: ${userCredits} TOKENS AVAILABLE]`)}
+              style={{
+                background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', gap: '4px',
+                color: '#00E5FF', fontSize: '11px', fontWeight: 800, fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
+                cursor: 'pointer', textShadow: '0 0 6px rgba(0, 229, 255, 0.4)', padding: 0
+              }}
+            >
+              <SparkIcon />
+              <span>{userCredits}</span>
+            </button>
+          </div>
+
           {/* Card Stage - Fits Viewport Height with JRPG Speech Bubble */}
           <div style={{
             flex: 1, position: 'relative', minHeight: 0,
             display: 'flex', justifyContent: 'center', alignItems: 'center'
           }}>
-            {currentCard ? (
-              <div
-                onPointerDown={handlePointerDown}
-                style={{
-                  width: '100%', height: '100%', position: 'relative',
-                  cursor: isDragging ? 'grabbing' : 'grab',
-                  transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${cardRotation}deg)`,
-                  transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                  userSelect: 'none', touchAction: 'none'
-                }}
-              >
-                {/* Floating JRPG Dialogue Bubble above card */}
-                <JrpgSpeechBubble
-                  text={companionSpeech}
-                  pColor={currentCard.themeColor || '#FF107A'}
-                />
+            {(() => {
+              const activeWaifu = currentCard || PAUSE_CARD;
+              return (
+                <div
+                  onPointerDown={handlePointerDown}
+                  style={{
+                    width: '100%', height: '100%', position: 'relative',
+                    cursor: isDragging ? 'grabbing' : 'grab',
+                    transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${cardRotation}deg)`,
+                    transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                    userSelect: 'none', touchAction: 'none'
+                  }}
+                >
+                  {/* Floating JRPG Dialogue Bubble above card */}
+                  {currentCard && (
+                    <JrpgSpeechBubble
+                      text={companionSpeech}
+                      pColor={currentCard.themeColor || '#FF107A'}
+                    />
+                  )}
 
-                <SwipeCard
-                  waifu={currentCard}
-                  preferences={{}}
-                  interactive={true}
-                  likeOpacity={likeOpacity}
-                  passOpacity={passOpacity}
-                  enableAtmosphere={true}
-                  onRegenImage={handleRegenImage}
-                  onOpenGachaFans={handleOpenGachaFans}
-                  style={{ width: '100%', height: '100%' }}
-                />
-              </div>
-            ) : (
-              <div style={{
-                textAlign: 'center', padding: '30px 16px',
-                background: 'rgba(255, 255, 255, 0.03)', borderRadius: '12px',
-                border: '1px dashed rgba(0, 229, 255, 0.4)', width: '100%'
-              }}>
-                <div style={{ fontSize: '40px', marginBottom: '12px' }}>🎴</div>
-                <h3 style={{ margin: '0 0 8px 0', color: '#00E5FF', fontSize: '15px', fontFamily: "ui-monospace, monospace" }}>&gt; DECK_DEPLETED</h3>
-                <p style={{ fontSize: '11px', color: '#a09ab8', lineHeight: 1.4, marginBottom: '16px', fontFamily: "ui-monospace, monospace" }}>
-                  All available companions surveyed. Summon a new custom persona or reset the matrix deck!
-                </p>
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                  <button
-                    onClick={() => { matrixAudio.playClick(); setActiveCardIndex(0); setHistory([]); }}
-                    style={{
-                      padding: '8px 14px', borderRadius: '4px', border: '1px solid rgba(255,16,122,0.4)',
-                      background: 'rgba(255,16,122,0.2)', color: '#FF107A',
-                      fontWeight: 700, fontSize: '11px', cursor: 'pointer', fontFamily: "ui-monospace, monospace"
-                    }}
-                  >
-                    RESET DECK
-                  </button>
-                  <button
-                    onClick={handleAIPull}
-                    style={{
-                      padding: '8px 14px', borderRadius: '4px',
-                      border: '1px solid #00E5FF', background: 'rgba(0,229,255,0.1)',
-                      color: '#00E5FF', fontWeight: 700, fontSize: '11px', cursor: 'pointer', fontFamily: "ui-monospace, monospace"
-                    }}
-                  >
-                    SUMMON NEW
-                  </button>
+                  <SwipeCard
+                    waifu={activeWaifu}
+                    preferences={{}}
+                    interactive={true}
+                    likeOpacity={likeOpacity}
+                    passOpacity={passOpacity}
+                    enableAtmosphere={true}
+                    onRegenImage={handleRegenImage}
+                    onOpenGachaFans={handleOpenGachaFans}
+                    style={{ width: '100%', height: '100%' }}
+                  />
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
-          {/* Bottom Control Deck */}
+          {/* Bottom Control Deck (1:1 with Screenshot 2) */}
           <div style={{
-            display: 'flex', justifyContent: 'center', alignItems: 'center',
-            gap: '16px', padding: '8px 0 4px', flexShrink: 0, zIndex: 10
+            display: 'flex', justifyContent: 'space-around', alignItems: 'center',
+            padding: '8px 0 12px', flexShrink: 0, zIndex: 10, width: '100%'
           }}>
-            {/* Rewind */}
+            {/* 1. Profile Square Button (Cyan) */}
             <button
-              onClick={handleRewind}
-              title="Rewind (R)"
-              className="control-btn rewind"
-              style={{ width: '42px', height: '42px' }}
+              onClick={() => {
+                matrixAudio.playClick();
+                if (isDesktop) setIsLeftPanelOpen(!isLeftPanelOpen);
+                else setIsRosterOpen(true);
+              }}
+              title="Character Matrix"
+              style={{
+                width: '42px', height: '42px', borderRadius: '12px',
+                background: 'rgba(0, 229, 255, 0.15)', border: '1px solid #00E5FF',
+                color: '#00E5FF', display: 'grid', placeItems: 'center',
+                cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 0 15px rgba(0,229,255,0.2)',
+                flexShrink: 0
+              }}
             >
-              <RewindIcon />
+              <UserIcon size={18} />
             </button>
 
-            {/* Pass (Nope) */}
+            {/* 2. Pass Button (X) */}
             <button
               onClick={() => handleSwipe('pass')}
               title="Pass (Left Arrow / A)"
               className="control-btn pass"
-              style={{ width: '56px', height: '56px' }}
+              style={{ width: '58px', height: '58px', borderRadius: '12px' }}
             >
-              <XIcon size={26} />
+              <XIcon size={24} />
             </button>
 
-            {/* Gacha Summon Pull */}
+            {/* 3. Rewind Button */}
             <button
-              onClick={handleAIPull}
-              disabled={isPullingCard}
-              title="Summon Companion (Space)"
-              style={{
-                width: '50px', height: '50px', borderRadius: '12px',
-                background: 'linear-gradient(135deg, #FFD700, #FF107A)', border: 'none',
-                color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: isPullingCard ? 'wait' : 'pointer', boxShadow: '0 0 20px rgba(255, 215, 0, 0.4)',
-                transition: 'transform 0.15s'
-              }}
+              onClick={handleRewind}
+              title="Rewind (R)"
+              className="control-btn rewind"
+              style={{ width: '44px', height: '44px', borderRadius: '12px' }}
             >
-              <SparkIcon />
+              <RewindIcon />
             </button>
 
-            {/* Like (Heart) */}
+            {/* 4. Like Button (Heart) */}
             <button
               onClick={() => handleSwipe('like')}
               title="Bond / Like (Right Arrow / D)"
               className="control-btn like"
-              style={{ width: '56px', height: '56px' }}
+              style={{ width: '58px', height: '58px', borderRadius: '12px' }}
             >
               <HeartIcon />
+            </button>
+
+            {/* 5. Music Button */}
+            <button
+              onClick={() => {
+                matrixAudio.playClick();
+                handleToggleMute();
+              }}
+              title="Audio Matrix Toggle"
+              style={{
+                width: '42px', height: '42px', borderRadius: '12px',
+                background: !isMuted ? 'rgba(181, 51, 255, 0.15)' : 'transparent',
+                border: !isMuted ? '1px solid #B533FF' : '1px solid rgba(255,255,255,0.1)',
+                color: !isMuted ? '#B533FF' : '#555', display: 'grid', placeItems: 'center',
+                cursor: 'pointer', transition: 'all 0.2s',
+                boxShadow: !isMuted ? '0 0 15px rgba(181, 51, 255, 0.2)' : 'none',
+                flexShrink: 0
+              }}
+            >
+              <MusicIcon />
             </button>
           </div>
         </div>
@@ -1088,8 +1132,11 @@ export default function App() {
               {rightPanelTab === 'chat' && (
                 <CyberMessenger
                   isEmbedded={true}
-                  companion={activeRoleplayCompanion || currentCard}
+                  companion={activeRoleplayCompanion}
+                  userCredits={userCredits}
                   onSpeechUpdate={setCompanionSpeech}
+                  onClose={() => setIsRightPanelOpen(false)}
+                  onShowToast={showToast}
                 />
               )}
 
