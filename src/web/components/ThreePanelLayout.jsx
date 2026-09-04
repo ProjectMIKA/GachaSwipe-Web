@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, createContext, useContext } from 'react';
 import './ThreePanelLayout.css';
 import { AdaptiveHUD } from './AdaptiveHUD.jsx';
+import { WelcomeModal } from './WelcomeModal.jsx';
+import { handleOAuthCallback } from '../pkceAuth.js';
 import { MatrixShooter } from '../../components/MatrixShooter.jsx';
 
 // Context for any child or sub-panel needing layout state
@@ -72,6 +74,16 @@ export const ThreePanelLayout = ({ children }) => {
         window.addEventListener('gacha:set-right-view', handleSetRightView);
         window.addEventListener('gacha:trigger-minigame', handleTriggerMinigame);
         window.addEventListener('gacha:select-waifu', handleSelectWaifu);
+
+        // Process incoming OAuth redirect codes (NanoGPT / OpenRouter PKCE)
+        handleOAuthCallback().then(result => {
+            if (result && result.success) {
+                console.log(`🐾 [M.I.K.A. OS] 1-Click OAuth Pairing Succeeded for ${result.provider}!`);
+                setRightPanelView('api');
+            }
+        }).catch(err => {
+            console.error('🐾 [M.I.K.A. OS] OAuth code exchange error:', err);
+        });
 
         return () => {
             window.removeEventListener('gacha:set-right-view', handleSetRightView);
@@ -174,6 +186,7 @@ export const ThreePanelLayout = ({ children }) => {
                     onClickCapture={handleCenterClickCapture}
                 >
                     {children}
+                    <WelcomeModal />
                 </main>
 
                 {/* ------------------------------------------------------------------

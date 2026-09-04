@@ -310,6 +310,30 @@ export async function setApiKey(apiKey) {
     return await setSetting("byok_nanogpt_key", apiKey.trim());
 }
 
+export async function getOpenRouterKey() {
+    return await getSetting("byok_openrouter_key", "");
+}
+
+export async function setOpenRouterKey(apiKey) {
+    return await setSetting("byok_openrouter_key", apiKey.trim());
+}
+
+export async function getActiveProvider() {
+    return await getSetting("activeProvider", "nanogpt");
+}
+
+export async function setActiveProvider(provider) {
+    return await setSetting("activeProvider", provider);
+}
+
+export async function getActiveApiKey() {
+    const provider = await getActiveProvider();
+    if (provider === "openrouter") {
+        return await getOpenRouterKey();
+    }
+    return await getApiKey();
+}
+
 // --- Reactive React Hooks ---
 
 export function useCards() {

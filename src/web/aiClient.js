@@ -1,16 +1,22 @@
-import { getApiKey, getSetting } from "./db.js";
+import { getApiKey, getSetting, setSetting, getOpenRouterKey, getActiveProvider } from "./db.js";
+export { buildAuthUrl, startOAuthFlow, handleOAuthCallback, exchangeAuthCode } from "./pkceAuth.js";
 
-const NANOGPT_CHAT_ENDPOINT = "https://nano-gpt.com/api/v1/chat/completions";
-const NANOGPT_IMAGE_ENDPOINT = "https://nano-gpt.com/api/v1/images/generations";
+export const NANOGPT_CHAT_ENDPOINT = "https://nano-gpt.com/api/v1/chat/completions";
+export const NANOGPT_IMAGE_ENDPOINT = "https://nano-gpt.com/api/v1/images/generations";
+export const OPENROUTER_CHAT_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
-export class NanoGPTError extends Error {
-    constructor(message, status = 500, code = "AI_ERROR") {
+export class AIClientError extends Error {
+    constructor(message, status = 500, code = "AI_ERROR", provider = "nanogpt") {
         super(message);
-        this.name = "NanoGPTError";
+        this.name = "AIClientError";
         this.status = status;
         this.code = code;
+        this.provider = provider;
     }
 }
+
+// Backwards-compatible alias for existing NanoGPT handlers
+export const NanoGPTError = AIClientError;
 
 /**
  * Strips accidental wrapping quotes, redundant "Bearer " prefixes, and outer whitespace.
@@ -23,37 +29,157 @@ export function cleanApiKey(rawKey) {
     return cleaned;
 }
 
+/**
+ * Dynamically resolves the active engine configuration (endpoint, API key, headers, defaults)
+ * based on the activeProvider setting in Dexie.
+ */
+export async function getActiveEngineConfig() {
+    const provider = await getSetting("activeProvider", "nanogpt");
+    let endpoint = "";
+    let apiKey = "";
+    let defaultModel = "";
+    const headers = { "Content-Type": "application/json" };
+
+    if (provider === "openrouter") {
+        const customEndpoint = await getSetting("custom_openrouter_endpoint", "");
+        endpoint = (customEndpoint && customEndpoint.trim()) || OPENROUTER_CHAT_ENDPOINT;
+        const rawKey = await getSetting("byok_openrouter_key", "");
+        apiKey = cleanApiKey(rawKey);
+        defaultModel = "openai/gpt-4o-mini";
+        if (apiKey) {
+            headers["Authorization"] = `Bearer ${apiKey}`;
+        }
+        if (typeof window !== "undefined") {
+            headers["HTTP-Referer"] = window.location.origin;
+            headers["X-Title"] = "GachaSwipe";
+        }
+    } else {
+        // Default to NanoGPT
+        const customEndpoint = await getSetting("custom_nanogpt_endpoint", "");
+        endpoint = (customEndpoint && customEndpoint.trim()) || NANOGPT_CHAT_ENDPOINT;
+        const rawKey = await getApiKey();
+        apiKey = cleanApiKey(rawKey);
+        defaultModel = "z-ai/glm-5.2";
+        if (apiKey) {
+            headers["Authorization"] = `Bearer ${apiKey}`;
+            headers["x-api-key"] = apiKey;
+        }
+    }
+
+    return { provider, endpoint, apiKey, defaultModel, headers };
+}
+
 export async function requireApiKey() {
-    const rawKey = await getApiKey();
-    const key = cleanApiKey(rawKey);
-    if (!key) {
-        throw new NanoGPTError(
-            "Missing NanoGPT API Key. Master, please paste your BYOK key into the Cloud Vault!",
+    const config = await getActiveEngineConfig();
+    if (!config.apiKey) {
+        throw new AIClientError(
+            `Missing API Key for ${config.provider === 'openrouter' ? 'OpenRouter' : 'NanoGPT'}. Master, please connect or paste your key into the API Matrix!`,
             401,
-            "MISSING_KEY"
+            "MISSING_KEY",
+            config.provider
         );
     }
-    return key;
+    return config.apiKey;
 }
 
 /**
- * Validates the user's BYOK key.
- * Primary verification: Queries NanoGPT's official zero-token /api/check-balance endpoint.
- * This checks authentication and credits without burning a single token!
- * Secondary fallback: If the balance route is down, tests a single token ping against openai/gpt-4o-mini.
+ * Validates connection and credentials for either NanoGPT or OpenRouter.
  */
-export async function testConnection(apiKey) {
-    const raw = apiKey || await getApiKey();
+export async function testConnection(apiKey, targetProvider) {
+    const provider = targetProvider || await getSetting("activeProvider", "nanogpt");
+    
+    // Resolve key if not explicitly passed
+    let raw = apiKey;
+    if (!raw) {
+        if (provider === "openrouter") {
+            raw = await getSetting("byok_openrouter_key", "");
+        } else {
+            raw = await getApiKey();
+        }
+    }
     const key = cleanApiKey(raw);
+    
     if (!key) {
-        throw new NanoGPTError(
-            "Missing NanoGPT API Key. Master, please paste your BYOK key into the Cloud Vault!",
+        throw new AIClientError(
+            `Missing API key for ${provider === 'openrouter' ? 'OpenRouter' : 'NanoGPT'}. Master, please paste or pair your key first!`,
             401,
-            "MISSING_KEY"
+            "MISSING_KEY",
+            provider
         );
     }
 
-    // --- Step 1: Zero-token auth & balance verification ---
+    // --- CASE 1: OpenRouter Connection Verification ---
+    if (provider === "openrouter") {
+        try {
+            // Check auth and limits using OpenRouter key inspection endpoint
+            const keyRes = await fetch("https://openrouter.ai/api/v1/auth/key", {
+                method: "GET",
+                headers: {
+                    "Authorization": "Bearer " + key,
+                    "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "https://gachaswipe.app",
+                    "X-Title": "GachaSwipe"
+                }
+            });
+
+            if (keyRes.ok) {
+                const info = await keyRes.json();
+                const d = info.data || {};
+                const limitStr = d.limit !== null && d.limit !== undefined ? `$${Number(d.limit).toFixed(2)} limit` : "No limit";
+                const usageStr = d.usage !== undefined ? `$${Number(d.usage).toFixed(3)} used` : "";
+                const details = [d.label, limitStr, usageStr].filter(Boolean).join(" • ");
+                return {
+                    success: true,
+                    balance: d,
+                    message: `⚡ OpenRouter Uplink Active! ${details || "Connected"}`
+                };
+            }
+
+            if (keyRes.status === 401) {
+                throw new AIClientError("Authentication rejected: Invalid OpenRouter API key.", 401, "AUTH_FAILED", "openrouter");
+            }
+        } catch (err) {
+            if (err instanceof AIClientError) throw err;
+        }
+
+        // Secondary fallback: Single-token ping
+        try {
+            const customEndpoint = await getSetting("custom_openrouter_endpoint", "");
+            const endpoint = (customEndpoint && customEndpoint.trim()) || OPENROUTER_CHAT_ENDPOINT;
+            
+            const res = await fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + key,
+                    "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "https://gachaswipe.app",
+                    "X-Title": "GachaSwipe"
+                },
+                body: JSON.stringify({
+                    model: "openai/gpt-4o-mini",
+                    messages: [{ role: "user", content: "ping" }],
+                    max_tokens: 1
+                })
+            });
+
+            if (res.status === 401 || res.status === 403) {
+                throw new AIClientError("Authentication rejected: Invalid OpenRouter API key.", res.status, "AUTH_FAILED", "openrouter");
+            }
+            if (res.status === 402) {
+                throw new AIClientError("OpenRouter account has insufficient credits.", res.status, "NO_CREDITS", "openrouter");
+            }
+            if (!res.ok) {
+                const errDetail = await res.text();
+                throw new AIClientError(`OpenRouter Error (${res.status}): ${errDetail}`, res.status, "SERVER_ERROR", "openrouter");
+            }
+
+            return { success: true, message: "⚡ Connection established with OpenRouter Matrix." };
+        } catch (err) {
+            if (err instanceof AIClientError) throw err;
+            throw new AIClientError("Network connection failure: " + err.message, 0, "NETWORK_ERROR", "openrouter");
+        }
+    }
+
+    // --- CASE 2: NanoGPT Connection Verification ---
     try {
         const balRes = await fetch("https://nano-gpt.com/api/check-balance", {
             method: "POST",
@@ -82,25 +208,26 @@ export async function testConnection(apiKey) {
 
         const errJson = await balRes.json().catch(() => null);
         if (errJson?.code === "malformed_api_key") {
-            throw new NanoGPTError(
-                "Malformed API key format. NanoGPT API keys must be UUID v4 strings (e.g., c7b39a36-6e97-48c5-9276-8086ef65e495). Please copy your key from nano-gpt.com/api.",
+            throw new AIClientError(
+                "Malformed API key format. NanoGPT keys are standard UUIDs (e.g. c7b39a36-...).",
                 400,
-                "MALFORMED_KEY"
+                "MALFORMED_KEY",
+                "nanogpt"
             );
         }
         if (balRes.status === 401 || errJson?.code === "invalid_api_key") {
-            throw new NanoGPTError(
-                "Authentication rejected: Invalid NanoGPT API key. Please verify your key at nano-gpt.com.",
+            throw new AIClientError(
+                "Authentication rejected: Invalid NanoGPT API key. Please check your key at nano-gpt.com.",
                 401,
-                "AUTH_FAILED"
+                "AUTH_FAILED",
+                "nanogpt"
             );
         }
     } catch (err) {
-        if (err instanceof NanoGPTError) throw err;
-        // Fallback to chat completions ping if balance route had transient network error
+        if (err instanceof AIClientError) throw err;
     }
 
-    // --- Step 2: Fallback single-token ping with user's active model (default z-ai/glm-5.2) ---
+    // Secondary fallback: Single-token ping
     try {
         let pingModel = "z-ai/glm-5.2";
         try {
@@ -108,7 +235,10 @@ export async function testConnection(apiKey) {
             if (saved) pingModel = saved;
         } catch (e) {}
 
-        const res = await fetch(NANOGPT_CHAT_ENDPOINT, {
+        const customEndpoint = await getSetting("custom_nanogpt_endpoint", "");
+        const endpoint = (customEndpoint && customEndpoint.trim()) || NANOGPT_CHAT_ENDPOINT;
+
+        const res = await fetch(endpoint, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -123,31 +253,77 @@ export async function testConnection(apiKey) {
         });
 
         if (res.status === 401 || res.status === 403) {
-            throw new NanoGPTError("Authentication rejected: Invalid API key. Please check your NanoGPT key.", res.status, "AUTH_FAILED");
+            throw new AIClientError("Authentication rejected: Invalid NanoGPT key.", res.status, "AUTH_FAILED", "nanogpt");
         }
         if (res.status === 402) {
-            throw new NanoGPTError("NanoGPT account has run out of credits.", res.status, "NO_CREDITS");
+            throw new AIClientError("NanoGPT account has run out of credits.", res.status, "NO_CREDITS", "nanogpt");
         }
         if (res.status === 429) {
-            throw new NanoGPTError("NanoGPT rate limit reached! Calm down for a second~", res.status, "RATE_LIMITED");
+            throw new AIClientError("NanoGPT rate limit reached! Calm down for a second~", res.status, "RATE_LIMITED", "nanogpt");
         }
         if (!res.ok) {
             const errDetail = await res.text();
-            throw new NanoGPTError("Gateway Error (" + res.status + "): " + errDetail, res.status, "SERVER_ERROR");
+            throw new AIClientError("Gateway Error (" + res.status + "): " + errDetail, res.status, "SERVER_ERROR", "nanogpt");
         }
 
         return { success: true, message: "⚡ Connection established with NanoGPT Matrix." };
     } catch (err) {
-        if (err instanceof NanoGPTError) throw err;
-        throw new NanoGPTError("Network connection failure: " + err.message, 0, "NETWORK_ERROR");
+        if (err instanceof AIClientError) throw err;
+        throw new AIClientError("Network connection failure: " + err.message, 0, "NETWORK_ERROR", "nanogpt");
     }
 }
 
 /**
- * Fetches the live list of Chat models from NanoGPT API.
+ * Fetches available models from the designated provider (or active engine).
  */
-export async function fetchAvailableModels(apiKey) {
-    const raw = apiKey || await getApiKey();
+export async function fetchAvailableModels(apiKey, targetProvider) {
+    const provider = targetProvider || await getSetting("activeProvider", "nanogpt");
+    
+    // --- OpenRouter Models ---
+    if (provider === "openrouter") {
+        let raw = apiKey || await getSetting("byok_openrouter_key", "");
+        const key = cleanApiKey(raw);
+        const headers = { "Content-Type": "application/json" };
+        if (key) headers["Authorization"] = "Bearer " + key;
+        if (typeof window !== "undefined") {
+            headers["HTTP-Referer"] = window.location.origin;
+            headers["X-Title"] = "GachaSwipe";
+        }
+
+        try {
+            const res = await fetch("https://openrouter.ai/api/v1/models", { headers });
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data?.data) && data.data.length > 0) {
+                    return data.data.map(m => ({
+                        id: m.id,
+                        name: m.name || m.id,
+                        owned_by: m.id.split("/")[0] || "openrouter",
+                        desc: m.description || "",
+                        context: m.context_length ? `${Math.round(m.context_length / 1024)}k` : undefined,
+                        pricing: m.pricing?.prompt ? `$${(Number(m.pricing.prompt) * 1000000).toFixed(2)}/M` : undefined,
+                        created: m.created || Date.now() / 1000
+                    }));
+                }
+            }
+        } catch (e) {
+            console.warn("🐾 [M.I.K.A API] OpenRouter live model query error:", e.message);
+        }
+
+        // Curated OpenRouter Fallbacks
+        return [
+            { id: "openai/gpt-4o-mini", name: "GPT-4o Mini", owned_by: "openai", desc: "Fast, intelligent, ultra-low latency flagship mini", pricing: "$0.15/M" },
+            { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet", owned_by: "anthropic", desc: "Supreme roleplay, prose, and emotional intelligence", pricing: "$3.00/M" },
+            { id: "meta-llama/llama-3.3-70b-instruct", name: "Llama 3.3 70B Instruct", owned_by: "meta-llama", desc: "State-of-the-art open weights flagship intelligence", pricing: "$0.12/M" },
+            { id: "deepseek/deepseek-chat", name: "DeepSeek V3", owned_by: "deepseek", desc: "Industry-leading reasoning and conversational flow", pricing: "$0.14/M" },
+            { id: "google/gemini-2.0-flash-001", name: "Gemini 2.0 Flash", owned_by: "google", desc: "Next-gen multimodal Google speed engine", pricing: "$0.10/M" },
+            { id: "qwen/qwen-2.5-72b-instruct", name: "Qwen 2.5 72B Instruct", owned_by: "qwen", desc: "Massive open weights model with expressive roleplay", pricing: "$0.35/M" },
+            { id: "mistralai/mistral-large-2411", name: "Mistral Large 2", owned_by: "mistralai", desc: "Top tier European multilingual foundation model", pricing: "$2.00/M" }
+        ];
+    }
+
+    // --- NanoGPT Models ---
+    let raw = apiKey || await getApiKey();
     const key = cleanApiKey(raw);
     const headers = { "Content-Type": "application/json" };
     if (key) {
@@ -165,7 +341,6 @@ export async function fetchAvailableModels(apiKey) {
             if (data && Array.isArray(data.data)) return data.data;
             if (data && Array.isArray(data.models)) return data.models;
         }
-        // Fallback endpoint
         const res2 = await fetch("https://nano-gpt.com/api/models", { headers });
         if (res2.ok) {
             const data2 = await res2.json();
@@ -174,7 +349,7 @@ export async function fetchAvailableModels(apiKey) {
         }
         throw new Error(`HTTP ${res.status}`);
     } catch (err) {
-        console.warn("[M.I.K.A API] Model registry query fallback:", err.message);
+        console.warn("🐾 [M.I.K.A API] NanoGPT model query fallback:", err.message);
         return [
             { id: "z-ai/glm-5.2", owned_by: "z-ai", created: 1770000000 },
             { id: "z-ai/glm-5.2:thinking", owned_by: "z-ai", created: 1770000000 },
@@ -236,7 +411,7 @@ export const NANOGPT_IMAGE_MODELS = [
 ];
 
 /**
- * Queries the live list of Image Generation models from NanoGPT API (GET /api/v1/images/models).
+ * Queries live list of Image Generation models from NanoGPT API.
  */
 export async function fetchAvailableImageModels(apiKey) {
     const raw = apiKey || await getApiKey();
@@ -262,7 +437,6 @@ export async function fetchAvailableImageModels(apiKey) {
                         || m.pricing?.per_image?.portrait_16_9;
                     const pricingStr = price ? `$${Number(price).toFixed(3)}/img` : undefined;
 
-                    // Categorize model
                     let category = m.category || "other";
                     const lowId = (m.id || "").toLowerCase();
                     const lowName = (m.name || "").toLowerCase();
@@ -286,7 +460,7 @@ export async function fetchAvailableImageModels(apiKey) {
         }
         throw new Error(`HTTP ${res.status}`);
     } catch (err) {
-        console.warn("[M.I.K.A API] Live image models query fallback:", err.message);
+        console.warn("🐾 [M.I.K.A API] Live image models query fallback:", err.message);
         return NANOGPT_IMAGE_MODELS;
     }
 }
@@ -323,9 +497,7 @@ export function generateOfflineFallbackPersona(messages) {
 }
 
 /**
- * Creates an SSE Chat Stream replicating the Layla SDK stream interface:
- * stream.on('content', (delta, snapshot) => ...)
- * await stream.finalContent()
+ * Creates an SSE Chat Stream dynamically routed based on activeProvider in Dexie.
  */
 export function createChatStream({ messages, systemPrompt, model, temperature = 0.85, signal }) {
     const listeners = { content: [], error: [], done: [] };
@@ -354,10 +526,10 @@ export function createChatStream({ messages, systemPrompt, model, temperature = 
 
     (async () => {
         try {
-            const rawKey = await getApiKey();
-            const apiKey = cleanApiKey(rawKey);
-            if (!apiKey) {
-                // Offline fallback simulation
+            const config = await getActiveEngineConfig();
+
+            // Offline simulation if no API key is set for active engine
+            if (!config.apiKey) {
                 const fallback = generateOfflineFallbackPersona(messages);
                 let currentSnap = "";
                 const tokens = fallback.split(/(\s+)/);
@@ -374,7 +546,7 @@ export function createChatStream({ messages, systemPrompt, model, temperature = 
                 return;
             }
 
-            // Dynamic model resolution: explicit param > saved user model in IndexedDB > default GLM 5.2
+            // Dynamic model resolution: explicit parameter > saved model in Dexie > provider default
             let activeChatModel = model;
             if (!activeChatModel || activeChatModel === "chatgpt-4o-latest" || activeChatModel === "Default (Auto)") {
                 try {
@@ -383,20 +555,16 @@ export function createChatStream({ messages, systemPrompt, model, temperature = 
                 } catch (e) {}
             }
             if (!activeChatModel) {
-                activeChatModel = "z-ai/glm-5.2";
+                activeChatModel = config.defaultModel;
             }
 
             const allMessages = [];
             if (systemPrompt) allMessages.push({ role: "system", content: systemPrompt });
             if (messages) allMessages.push(...messages);
 
-            const res = await fetch(NANOGPT_CHAT_ENDPOINT, {
+            const res = await fetch(config.endpoint, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer " + apiKey,
-                    "x-api-key": apiKey
-                },
+                headers: config.headers,
                 body: JSON.stringify({
                     model: activeChatModel,
                     messages: allMessages,
@@ -408,7 +576,7 @@ export function createChatStream({ messages, systemPrompt, model, temperature = 
 
             if (!res.ok) {
                 const errDetail = await res.text();
-                throw new NanoGPTError("Chat completion failed (" + res.status + "): " + errDetail, res.status);
+                throw new AIClientError(`Chat completion failed (${res.status}): ${errDetail}`, res.status, "STREAM_FAILED", config.provider);
             }
 
             const reader = res.body.getReader();
@@ -438,7 +606,7 @@ export function createChatStream({ messages, systemPrompt, model, temperature = 
                             });
                         }
                     } catch (e) {
-                        // ignore malformed chunk
+                        // ignore unparseable chunk
                     }
                 }
             }
@@ -455,12 +623,12 @@ export function createChatStream({ messages, systemPrompt, model, temperature = 
 }
 
 /**
- * Standard non-streaming chat completion
+ * Standard non-streaming chat completion with dynamic activeProvider routing.
  */
 export async function generateCharacterPersona({ prompt, systemPrompt, messages, model, temperature = 0.85 }) {
-    const rawKey = await getApiKey();
-    const apiKey = cleanApiKey(rawKey);
-    if (!apiKey) {
+    const config = await getActiveEngineConfig();
+    
+    if (!config.apiKey) {
         return generateOfflineFallbackPersona(messages || [{ role: "user", content: prompt }]);
     }
 
@@ -472,7 +640,7 @@ export async function generateCharacterPersona({ prompt, systemPrompt, messages,
         } catch (e) {}
     }
     if (!activeChatModel) {
-        activeChatModel = "z-ai/glm-5.2";
+        activeChatModel = config.defaultModel;
     }
 
     const allMessages = [];
@@ -483,13 +651,9 @@ export async function generateCharacterPersona({ prompt, systemPrompt, messages,
         allMessages.push({ role: "user", content: prompt });
     }
 
-    const res = await fetch(NANOGPT_CHAT_ENDPOINT, {
+    const res = await fetch(config.endpoint, {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + apiKey,
-            "x-api-key": apiKey
-        },
+        headers: config.headers,
         body: JSON.stringify({
             model: activeChatModel,
             messages: allMessages,
@@ -499,11 +663,11 @@ export async function generateCharacterPersona({ prompt, systemPrompt, messages,
     });
 
     if (!res.ok) {
-        if (res.status === 401) throw new NanoGPTError("Unauthorized. Please check your NanoGPT API key.", 401, "AUTH_FAILED");
-        if (res.status === 402) throw new NanoGPTError("Insufficient NanoGPT credits.", 402, "NO_CREDITS");
-        if (res.status === 429) throw new NanoGPTError("Rate limit exceeded.", 429, "RATE_LIMITED");
+        if (res.status === 401) throw new AIClientError(`Unauthorized. Please check your ${config.provider} API key.`, 401, "AUTH_FAILED", config.provider);
+        if (res.status === 402) throw new AIClientError(`Insufficient ${config.provider} credits.`, 402, "NO_CREDITS", config.provider);
+        if (res.status === 429) throw new AIClientError("Rate limit exceeded.", 429, "RATE_LIMITED", config.provider);
         const errDetail = await res.text();
-        throw new NanoGPTError("Generation failed (" + res.status + "): " + errDetail, res.status, "GEN_FAILED");
+        throw new AIClientError(`Generation failed (${res.status}): ${errDetail}`, res.status, "GEN_FAILED", config.provider);
     }
 
     const data = await res.json();
@@ -569,7 +733,10 @@ export async function generateCharacterImage({ prompt, model, aspectRatio = "9:1
             return "data:image/svg+xml;base64," + btoa(svg);
         }
 
-        const res = await fetch(NANOGPT_IMAGE_ENDPOINT, {
+        const customEndpoint = await getSetting("custom_nanogpt_image_endpoint", "");
+        const imageEndpoint = (customEndpoint && customEndpoint.trim()) || NANOGPT_IMAGE_ENDPOINT;
+
+        const res = await fetch(imageEndpoint, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -589,15 +756,15 @@ export async function generateCharacterImage({ prompt, model, aspectRatio = "9:1
         if (!res.ok) {
             const errDetail = await res.text();
             if (res.status === 401) {
-                throw new NanoGPTError("Unauthorized: Invalid NanoGPT API key.", 401, "AUTH_FAILED");
+                throw new AIClientError("Unauthorized: Invalid NanoGPT API key.", 401, "AUTH_FAILED", "nanogpt");
             }
             if (res.status === 402) {
-                throw new NanoGPTError("Insufficient NanoGPT balance for image generation.", 402, "NO_CREDITS");
+                throw new AIClientError("Insufficient NanoGPT balance for image generation.", 402, "NO_CREDITS", "nanogpt");
             }
             if (res.status === 429) {
-                throw new NanoGPTError("NanoGPT image rate limit reached. Please wait a moment.", 429, "RATE_LIMITED");
+                throw new AIClientError("NanoGPT image rate limit reached. Please wait a moment.", 429, "RATE_LIMITED", "nanogpt");
             }
-            throw new NanoGPTError("Image synthesis failed (" + res.status + "): " + errDetail, res.status, "IMG_FAILED");
+            throw new AIClientError(`Image synthesis failed (${res.status}): ${errDetail}`, res.status, "IMG_FAILED", "nanogpt");
         }
 
         const data = await res.json();
@@ -606,7 +773,7 @@ export async function generateCharacterImage({ prompt, model, aspectRatio = "9:1
             || data.images?.[0]?.url 
             || (data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : null);
 
-        if (!imageUrl) throw new NanoGPTError("No image returned by NanoGPT.", 500, "EMPTY_RESPONSE");
+        if (!imageUrl) throw new AIClientError("No image returned by NanoGPT.", 500, "EMPTY_RESPONSE", "nanogpt");
 
         if (onProgress) onProgress("Neural portrait complete!", totalSteps, totalSteps);
         return imageUrl;
