@@ -2,11 +2,14 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useCards, saveCard, deleteCard, useCardCount, getApiKey } from './web/db.js';
 import { generateCharacterPersona, generateCharacterImage, NanoGPTError } from './web/aiClient.js';
 import { CloudVault } from './web/CloudVault.jsx';
+import { RoleplayModal } from './web/RoleplayModal.jsx';
+import { RosterModal } from './web/RosterModal.jsx';
+import { ThemeModal } from './web/ThemeModal.jsx';
 import { SwipeCard } from './core/components/SwipeCard.jsx';
-import { HeartIcon, XIcon, RewindIcon, InfoIcon, SparkIcon, RefreshIcon } from './core/components/Icons.jsx';
+import { HeartIcon, XIcon, RewindIcon, SparkIcon } from './core/components/Icons.jsx';
 import { DEFAULT_PROXY } from './core/data/constants.js';
 
-// Ultra-reliable starter cards for instant visual wow-factor
+// Pre-configured elite starter cards
 const STARTER_CARDS = [
   {
     id: 'mika-prime',
@@ -85,13 +88,33 @@ const STARTER_CARDS = [
   }
 ];
 
+const PRESET_TRAITS = ['Catgirl', 'Tsundere', 'Yandere', 'Cyberpunk', 'Kuudere', 'Goddess', 'Maid', 'Smug'];
+
 export default function App() {
   const dbCards = useCards();
   const cardCount = useCardCount();
   const [deck, setDeck] = useState(STARTER_CARDS);
   const [history, setHistory] = useState([]);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
+  
+  // Modals & Drawers
   const [isCloudVaultOpen, setIsCloudVaultOpen] = useState(false);
+  const [isRoleplayOpen, setIsRoleplayOpen] = useState(false);
+  const [activeRoleplayCompanion, setActiveRoleplayCompanion] = useState(null);
+  const [isRosterOpen, setIsRosterOpen] = useState(false);
+  const [isThemeOpen, setIsThemeOpen] = useState(false);
+  
+  // Traits & Target Matrix
+  const [selectedTheme, setSelectedTheme] = useState('default');
+  const [isTraitsExpanded, setIsTraitsExpanded] = useState(false);
+  const [selectedTraits, setSelectedTraits] = useState(['Catgirl']);
+  const [customTraitInput, setCustomTraitInput] = useState('');
+  
+  // Tastes Algorithm Tracking
+  const [likedCount, setLikedCount] = useState(1);
+  const [passedCount, setPassedCount] = useState(0);
+
+  // AI Pull & Toast
   const [isPullingCard, setIsPullingCard] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   
@@ -108,7 +131,7 @@ export default function App() {
         uuid: c.uuid,
         name: c.characterName || c.metadata?.name || 'Companion',
         age: c.metadata?.age || '20',
-        personality: c.metadata?.personality || 'Enigmatic & Loyal',
+        personality: c.metadata?.personality || 'Enigmatic & Devoted',
         archetype: c.metadata?.archetype || 'Digital Companion',
         quirks: Array.isArray(c.metadata?.quirks) ? c.metadata.quirks : ['Loyal Companion'],
         likes: Array.isArray(c.metadata?.likes) ? c.metadata.likes : ['Master'],
@@ -140,6 +163,10 @@ export default function App() {
 
   const currentCard = deck[activeCardIndex] || null;
 
+  // Algorithm Progress Calculation
+  const totalSwipes = likedCount + passedCount;
+  const tasteSyncPct = totalSwipes > 0 ? Math.min(100, Math.round((likedCount / totalSwipes) * 100)) : 85;
+
   // Swipe Action Handlers
   const handleSwipe = useCallback(async (direction) => {
     if (!currentCard) return;
@@ -147,33 +174,18 @@ export default function App() {
     setHistory(prev => [...prev, { card: currentCard, direction }]);
     
     if (direction === 'like') {
+      setLikedCount(c => c + 1);
       showToast(`💖 Bond formed with ${currentCard.name || 'Companion'}!`);
       if (!currentCard.dbId) {
         await saveCard({
           uuid: currentCard.uuid || crypto.randomUUID(),
           characterName: currentCard.name,
           imageBlobOrUrl: currentCard.imageUrl || currentCard.image,
-          metadata: {
-            name: currentCard.name,
-            age: currentCard.age,
-            personality: currentCard.personality,
-            archetype: currentCard.archetype,
-            description: currentCard.description,
-            tagline: currentCard.tagline,
-            quirks: currentCard.quirks,
-            likes: currentCard.likes,
-            dislikes: currentCard.dislikes,
-            tags: currentCard.tags,
-            isSSR: currentCard.isSSR,
-            themeColor: currentCard.themeColor,
-            gradient: currentCard.gradient,
-            scenario: currentCard.scenario,
-            first_message: currentCard.first_message,
-            greeting: currentCard.greeting
-          }
+          metadata: { ...currentCard }
         });
       }
     } else {
+      setPassedCount(c => c + 1);
       showToast(`💨 Passed on ${currentCard.name || 'companion'}.`);
     }
 
@@ -218,15 +230,58 @@ export default function App() {
     }
   };
 
+  // Keyboard Shortcuts for Web
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') handleSwipe('pass');
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') handleSwipe('like');
+      if (e.key === 'r' || e.key === 'R') handleRewind();
+      if (e.key === ' ') { e.preventDefault(); handleAIPull(); }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSwipe, handleRewind]);
+
+  // Selfie Re-Encryption / Image Regeneration Handler
+  const handleRegenImage = async (waifu) => {
+    showToast(`📸 Snapping a new selfie for ${waifu.name}...`);
+    setDeck(prev => prev.map(w => w.id === waifu.id ? { ...w, isRegenerating: true, regenStatus: 'GENERATING NEW LOOK...' } : w));
+    try {
+      const apiKey = await getApiKey();
+      if (apiKey && apiKey.trim() !== '') {
+        const newImg = await generateCharacterImage({
+          prompt: `Masterpiece anime selfie of ${waifu.name}, ${waifu.archetype}, stylish modern outfit, glowing neon rim light, highly detailed, 8k, beautiful eyes`
+        });
+        setDeck(prev => prev.map(w => w.id === waifu.id ? { ...w, imageUrl: newImg, image: newImg, isRegenerating: false } : w));
+        showToast(`✨ New selfie captured for ${waifu.name}!`);
+      } else {
+        setTimeout(() => {
+          const fallbackImg = `https://picsum.photos/seed/${Date.now()}/800/1200`;
+          setDeck(prev => prev.map(w => w.id === waifu.id ? { ...w, imageUrl: fallbackImg, image: fallbackImg, isRegenerating: false } : w));
+          showToast(`✨ Generated local snapshot! Add NanoGPT key for AI synthesis.`);
+        }, 1200);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast(`⚠️ Selfie Error: ${err.message}`);
+      setDeck(prev => prev.map(w => w.id === waifu.id ? { ...w, isRegenerating: false } : w));
+    }
+  };
+
   // AI Pull / Card Summon Handler
   const handleAIPull = async () => {
     setIsPullingCard(true);
-    showToast('✨ Accessing NanoGPT Matrix for new companion pull...');
+    const combinedTraits = [...selectedTraits];
+    if (customTraitInput.trim()) combinedTraits.push(customTraitInput.trim());
+    const traitsStr = combinedTraits.join(', ');
+
+    showToast(`✨ Summoning ${selectedTheme.toUpperCase()} Companion (${traitsStr})...`);
     try {
       const apiKey = await getApiKey();
       if (apiKey && apiKey.trim() !== '') {
         const personaText = await generateCharacterPersona({
-          prompt: 'Generate an anime companion in JSON format: { "name": string, "age": string, "personality": string, "archetype": string, "tagline": string, "description": string, "quirks": string[], "likes": string[], "dislikes": string[], "tags": string[] }',
+          prompt: `Generate an anime companion in theme "${selectedTheme}" with traits [${traitsStr}] in JSON format: { "name": string, "age": string, "personality": string, "archetype": string, "tagline": string, "description": string, "quirks": string[], "likes": string[], "dislikes": string[], "tags": string[] }`,
           systemPrompt: 'You are an anime character creation engine. Respond ONLY with valid JSON.'
         });
         
@@ -239,7 +294,7 @@ export default function App() {
             age: '19',
             personality: 'Playful & Spunky',
             description: personaText.slice(0, 140),
-            tagline: 'Cyber explorer of the neon expanse.',
+            tagline: 'Cyber explorer of the neon matrix.',
             quirks: ['Hacks streetlights', 'Collects retro game cartridges'],
             likes: ['Cyber ramen', 'Night drives'],
             dislikes: ['Data loss'],
@@ -248,7 +303,7 @@ export default function App() {
         }
 
         const imageUrl = await generateCharacterImage({
-          prompt: `Masterpiece anime portrait of ${parsed.name}, ${parsed.archetype || 'cyberpunk waifu'}, highly detailed, glowing neon highlights, 8k, vibrant colors`
+          prompt: `Masterpiece anime portrait of ${parsed.name}, ${parsed.archetype || 'cyberpunk waifu'}, ${traitsStr}, highly detailed, glowing neon highlights, 8k, vibrant colors`
         });
 
         const isSSR = Math.random() > 0.65;
@@ -262,7 +317,7 @@ export default function App() {
             isSSR,
             themeColor: isSSR ? '#FFD700' : '#00E5FF',
             gradient: isSSR ? ['#FFD700', '#FF107A'] : ['#00E5FF', '#0B0914'],
-            scenario: 'smiles at you through holographic lights',
+            scenario: 'smiles warmly at you through holographic lights',
             first_message: `I am ${parsed.name}. It is an honor to meet you, Master.`,
             greeting: `Greetings, Master!`
           }
@@ -326,201 +381,335 @@ export default function App() {
     }
   };
 
+  const toggleTrait = (trait) => {
+    setSelectedTraits(prev => 
+      prev.includes(trait) ? prev.filter(t => t !== trait) : [...prev, trait]
+    );
+  };
+
   const likeOpacity = Math.min(1, Math.max(0, dragOffset.x / 90));
   const passOpacity = Math.min(1, Math.max(0, -dragOffset.x / 90));
   const cardRotation = dragOffset.x * 0.08;
 
   return (
     <div style={{
-      width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column',
-      background: 'radial-gradient(circle at 50% 20%, #1f1435 0%, #0c0817 60%, #05030a 100%)',
-      color: '#fff', overflowX: 'hidden', position: 'relative',
+      width: '100vw', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center',
+      background: 'radial-gradient(circle at 50% 30%, #150f24 0%, #080510 60%, #030206 100%)',
+      color: '#fff', overflow: 'hidden', position: 'relative',
       fontFamily: "'Hanken Grotesk', system-ui, sans-serif"
     }}
     onPointerMove={handlePointerMove}
     onPointerUp={handlePointerUp}
     >
-      {/* Top Cyber Navigation Bar */}
-      <header style={{
-        padding: '16px 24px', display: 'flex', justifyContent: 'space-between',
-        alignItems: 'center', zIndex: 100, width: '100%',
-        borderBottom: '1px solid rgba(255, 107, 181, 0.15)',
-        background: 'rgba(12, 8, 23, 0.85)', backdropFilter: 'blur(12px)',
-        boxSizing: 'border-box'
+      {/* Authentic Cyberpunk CRT Scanlines & Vignette */}
+      <div className="swipe-scanlines" />
+      <div className="swipe-vignette" />
+
+      {/* Cyberdeck Console Container */}
+      <div className="swipe-container" style={{
+        width: '100%', maxWidth: '440px', height: '100vh', maxHeight: '100vh',
+        display: 'flex', flexDirection: 'column', position: 'relative', padding: '12px 16px',
+        boxSizing: 'border-box', overflow: 'hidden', background: '#050308',
+        boxShadow: '0 0 60px rgba(0, 229, 255, 0.15), inset 0 0 30px rgba(0,0,0,0.8)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{
-            fontSize: '22px', background: 'linear-gradient(135deg, #ff77a9, #00f5d4)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: 800
-          }}>
-            🐾 GACHASWIPE <span style={{ fontSize: '13px', color: '#ff77a9', letterSpacing: '0.1em' }}>WEB</span>
-          </span>
-          <span style={{
-            fontSize: '11px', padding: '3px 8px', borderRadius: '12px',
-            background: 'rgba(0, 245, 212, 0.15)', color: '#00f5d4', border: '1px solid rgba(0, 245, 212, 0.3)'
-          }}>
-            Matrix Online
-          </span>
+        {/* Terminal Top Bar */}
+        <div className="swipe-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', zIndex: 10, flexShrink: 0 }}>
+          {/* Target Theme Pill */}
+          <div 
+            className="theme-pill"
+            onClick={() => setIsThemeOpen(true)}
+            title="Click to Switch Theme Matrix"
+            style={{ cursor: 'pointer' }}
+          >
+            <span style={{ fontWeight: 'bold', color: 'rgba(0,229,255,0.6)', marginRight: '4px', flexShrink: 0 }}>&gt; TARGET:</span>
+            <div className="smart-scroll-box">
+              <span className="smart-scroll-content" style={{ color: '#00E5FF', fontWeight: 'bold', textShadow: '0 0 6px rgba(0,229,255,0.4)' }}>
+                {selectedTheme.toUpperCase()}
+              </span>
+            </div>
+          </div>
+
+          {/* Algorithm Tastes Meter */}
+          <div 
+            className="tastes-meter-container" 
+            title="Algorithm Affinity Sync"
+            style={{ cursor: 'pointer' }}
+            onClick={() => showToast(`🧠 Algorithm Matrix: ${tasteSyncPct}% Affinity Sync based on ${totalSwipes} swipes!`)}
+          >
+            <div className="tastes-meter-fill" style={{ width: `${tasteSyncPct}%` }} />
+            <div className="tastes-meter-text">
+              {tasteSyncPct}% SYNC
+            </div>
+          </div>
+
+          {/* Action Icons */}
+          <div className="header-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {/* Matches / Roster Archive */}
+            <button 
+              className="header-icon-btn" 
+              onClick={() => setIsRosterOpen(true)}
+              title="Companion Vault Archive"
+              style={{ color: '#00E5FF', position: 'relative' }}
+            >
+              <span style={{ fontSize: '16px' }}>🎴</span>
+              <span style={{
+                position: 'absolute', top: '-2px', right: '-4px', background: '#ff107a',
+                color: '#fff', fontSize: '9px', fontWeight: 900, padding: '1px 5px',
+                borderRadius: '8px', border: '1px solid #000'
+              }}>
+                {cardCount}
+              </span>
+            </button>
+
+            {/* Live Hologram Roleplay Chat */}
+            <button 
+              className="header-icon-btn" 
+              onClick={() => {
+                if (currentCard) {
+                  setActiveRoleplayCompanion(currentCard);
+                  setIsRoleplayOpen(true);
+                } else {
+                  showToast('🐾 Pull or select a companion first, Master!');
+                }
+              }}
+              title="Open Live Hologram Link"
+              style={{ color: '#FF107A' }}
+            >
+              <span style={{ fontSize: '16px' }}>💬</span>
+            </button>
+
+            {/* Cloud Vault */}
+            <button 
+              className="header-icon-btn" 
+              onClick={() => setIsCloudVaultOpen(true)}
+              title="M.I.K.A. Cloud Vault & BYOK"
+              style={{ color: '#FFB36B' }}
+            >
+              <span style={{ fontSize: '16px' }}>⚡</span>
+            </button>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Expandable Specify Traits Accordion */}
+        <div style={{ marginBottom: '8px', flexShrink: 0, zIndex: 15 }}>
+          <div 
+            className={`bubble-tab ${isTraitsExpanded ? 'active' : ''}`}
+            onClick={() => setIsTraitsExpanded(!isTraitsExpanded)}
+            style={{ padding: '7px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderRadius: '6px' }}
+          >
+            <span style={{ fontSize: '11px', fontWeight: 800 }}>&gt; SPECIFY_TRAITS ({selectedTraits.length})</span>
+            <span style={{ fontSize: '10px' }}>{isTraitsExpanded ? '▲' : '▼'}</span>
+          </div>
+
+          {isTraitsExpanded && (
+            <div style={{
+              background: 'rgba(0, 0, 0, 0.75)', border: '1px solid rgba(0, 229, 255, 0.25)',
+              borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '10px 12px',
+              display: 'flex', flexDirection: 'column', gap: '8px', backdropFilter: 'blur(8px)'
+            }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {PRESET_TRAITS.map(t => {
+                  const active = selectedTraits.includes(t);
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => toggleTrait(t)}
+                      style={{
+                        padding: '4px 10px', borderRadius: '12px', border: `1px solid ${active ? '#00E5FF' : 'rgba(255,255,255,0.15)'}`,
+                        background: active ? 'rgba(0, 229, 255, 0.2)' : 'rgba(255,255,255,0.03)',
+                        color: active ? '#00E5FF' : '#aaa', fontSize: '10px', fontWeight: 700, cursor: 'pointer'
+                      }}
+                    >
+                      {t}
+                    </button>
+                  );
+                })}
+              </div>
+              <input
+                type="text"
+                placeholder="Custom keywords (e.g. elf, hacker, maid)..."
+                value={customTraitInput}
+                onChange={e => setCustomTraitInput(e.target.value)}
+                style={{
+                  width: '100%', padding: '6px 10px', borderRadius: '6px',
+                  background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.15)',
+                  color: '#fff', fontSize: '11px', outline: 'none', boxSizing: 'border-box'
+                }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Card Stage - Perfectly Fits Viewport Height */}
+        <div style={{
+          flex: 1, position: 'relative', minHeight: 0,
+          display: 'flex', justifyContent: 'center', alignItems: 'center'
+        }}>
+          {currentCard ? (
+            <div
+              onPointerDown={handlePointerDown}
+              style={{
+                width: '100%', height: '100%', position: 'relative',
+                cursor: isDragging ? 'grabbing' : 'grab',
+                transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${cardRotation}deg)`,
+                transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                userSelect: 'none', touchAction: 'none'
+              }}
+            >
+              <SwipeCard
+                waifu={currentCard}
+                preferences={{}}
+                interactive={true}
+                likeOpacity={likeOpacity}
+                passOpacity={passOpacity}
+                enableAtmosphere={true}
+                onRegenImage={handleRegenImage}
+                style={{ width: '100%', height: '100%' }}
+              />
+            </div>
+          ) : (
+            <div style={{
+              textAlign: 'center', padding: '30px 16px',
+              background: 'rgba(255, 255, 255, 0.03)', borderRadius: '20px',
+              border: '1px dashed rgba(255, 107, 181, 0.4)', width: '100%'
+            }}>
+              <div style={{ fontSize: '40px', marginBottom: '12px' }}>🎴</div>
+              <h3 style={{ margin: '0 0 8px 0', color: '#ff77a9', fontSize: '16px' }}>&gt; DECK_DEPLETED</h3>
+              <p style={{ fontSize: '12px', color: '#a09ab8', lineHeight: 1.4, marginBottom: '16px' }}>
+                All available companions surveyed. Summon a new custom persona or reset the matrix deck!
+              </p>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                <button
+                  onClick={() => { setActiveCardIndex(0); setHistory([]); }}
+                  style={{
+                    padding: '8px 14px', borderRadius: '10px', border: 'none',
+                    background: 'linear-gradient(135deg, #ff77a9, #a370f7)',
+                    color: '#fff', fontWeight: 700, fontSize: '11px', cursor: 'pointer'
+                  }}
+                >
+                  RESET DECK
+                </button>
+                <button
+                  onClick={handleAIPull}
+                  style={{
+                    padding: '8px 14px', borderRadius: '10px',
+                    border: '1px solid #00f5d4', background: 'transparent',
+                    color: '#00f5d4', fontWeight: 700, fontSize: '11px', cursor: 'pointer'
+                  }}
+                >
+                  SUMMON NEW
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Bottom Control Deck */}
+        <div style={{
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
+          gap: '16px', padding: '10px 0 6px', flexShrink: 0, zIndex: 10
+        }}>
+          {/* Rewind */}
+          <button
+            onClick={handleRewind}
+            title="Rewind (R)"
+            style={{
+              width: '42px', height: '42px', borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(255, 255, 255, 0.2)',
+              color: '#f5a623', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', transition: 'transform 0.15s'
+            }}
+          >
+            <RewindIcon />
+          </button>
+
+          {/* Pass (Nope) */}
+          <button
+            onClick={() => handleSwipe('pass')}
+            title="Pass (Left Arrow / A)"
+            style={{
+              width: '54px', height: '54px', borderRadius: '50%',
+              background: 'rgba(255, 77, 109, 0.12)', border: '2px solid #ff4d6d',
+              color: '#ff4d6d', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', boxShadow: '0 0 15px rgba(255, 77, 109, 0.3)',
+              transition: 'transform 0.15s'
+            }}
+          >
+            <XIcon size={26} />
+          </button>
+
+          {/* Gacha Summon Pull */}
           <button
             onClick={handleAIPull}
             disabled={isPullingCard}
+            title="Summon Companion (Space)"
             style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '8px 14px', borderRadius: '20px', border: 'none',
-              background: 'linear-gradient(135deg, #00f5d4, #7928ca)',
-              color: '#000', fontWeight: 700, fontSize: '12px', cursor: isPullingCard ? 'wait' : 'pointer',
-              boxShadow: '0 0 15px rgba(0, 245, 212, 0.3)'
+              width: '52px', height: '52px', borderRadius: '50%',
+              background: 'linear-gradient(135deg, #FFD700, #FF107A)', border: 'none',
+              color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: isPullingCard ? 'wait' : 'pointer', boxShadow: '0 0 20px rgba(255, 215, 0, 0.4)',
+              transition: 'transform 0.15s'
             }}
           >
-            <SparkIcon /> {isPullingCard ? 'Summoning...' : 'Gacha Pull'}
+            <SparkIcon />
           </button>
 
+          {/* Like (Heart) */}
           <button
-            onClick={() => setIsCloudVaultOpen(true)}
+            onClick={() => handleSwipe('like')}
+            title="Bond / Like (Right Arrow / D)"
             style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              padding: '8px 14px', borderRadius: '20px',
-              border: '1px solid rgba(255, 119, 169, 0.4)',
-              background: 'rgba(255, 119, 169, 0.12)',
-              color: '#ffb3c6', fontWeight: 600, fontSize: '12px', cursor: 'pointer'
+              width: '56px', height: '56px', borderRadius: '50%',
+              background: 'linear-gradient(135deg, #00f5d4, #05b49b)', border: 'none',
+              color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', boxShadow: '0 0 20px rgba(0, 245, 212, 0.5)',
+              transition: 'transform 0.15s'
             }}
           >
-            <span>⚡ Cloud Vault</span>
-            <span style={{
-              background: '#ff4d6d', color: '#fff', padding: '1px 6px',
-              borderRadius: '10px', fontSize: '10px'
-            }}>
-              {cardCount}
-            </span>
+            <HeartIcon />
           </button>
         </div>
-      </header>
+      </div>
 
-      {/* Main Swipe Stage */}
-      <main style={{
-        flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center',
-        position: 'relative', padding: '24px 16px', minHeight: '620px'
-      }}>
-        {currentCard ? (
-          <div
-            onPointerDown={handlePointerDown}
-            style={{
-              width: '100%', maxWidth: '380px', height: '580px', position: 'relative',
-              cursor: isDragging ? 'grabbing' : 'grab',
-              transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${cardRotation}deg)`,
-              transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-              userSelect: 'none', touchAction: 'none'
-            }}
-          >
-            <SwipeCard
-              waifu={currentCard}
-              preferences={{}}
-              interactive={true}
-              likeOpacity={likeOpacity}
-              passOpacity={passOpacity}
-              enableAtmosphere={true}
-              style={{ width: '100%', height: '100%' }}
-            />
-          </div>
-        ) : (
-          <div style={{
-            textAlign: 'center', padding: '40px 20px',
-            background: 'rgba(255, 255, 255, 0.04)', borderRadius: '24px',
-            border: '1px dashed rgba(255, 107, 181, 0.4)', maxWidth: '340px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
-          }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🎴</div>
-            <h3 style={{ margin: '0 0 8px 0', color: '#ff77a9', fontSize: '20px' }}>Deck Depleted!</h3>
-            <p style={{ fontSize: '13px', color: '#a09ab8', lineHeight: 1.5, marginBottom: '20px' }}>
-              You have swiped through all available cards, Master! Pull a new companion from the NanoGPT Matrix or reset your deck.
-            </p>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-              <button
-                onClick={() => { setActiveCardIndex(0); setHistory([]); }}
-                style={{
-                  padding: '10px 18px', borderRadius: '12px', border: 'none',
-                  background: 'linear-gradient(135deg, #ff77a9, #a370f7)',
-                  color: '#fff', fontWeight: 600, cursor: 'pointer'
-                }}
-              >
-                Reset Deck
-              </button>
-              <button
-                onClick={handleAIPull}
-                style={{
-                  padding: '10px 18px', borderRadius: '12px',
-                  border: '1px solid #00f5d4', background: 'transparent',
-                  color: '#00f5d4', fontWeight: 600, cursor: 'pointer'
-                }}
-              >
-                Summon New
-              </button>
-            </div>
-          </div>
-        )}
-      </main>
-
-      {/* Bottom Deck Controls */}
-      <footer style={{
-        padding: '16px 20px 32px', display: 'flex', justifyContent: 'center',
-        alignItems: 'center', gap: '24px', zIndex: 100
-      }}>
-        <button
-          onClick={handleRewind}
-          title="Rewind"
-          style={{
-            width: '48px', height: '48px', borderRadius: '50%',
-            background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.2)',
-            color: '#f5a623', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', transition: 'transform 0.15s'
-          }}
-        >
-          <RewindIcon />
-        </button>
-
-        <button
-          onClick={() => handleSwipe('pass')}
-          title="Pass"
-          style={{
-            width: '64px', height: '64px', borderRadius: '50%',
-            background: 'rgba(255, 77, 109, 0.15)', border: '2px solid #ff4d6d',
-            color: '#ff4d6d', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', boxShadow: '0 0 20px rgba(255, 77, 109, 0.35)',
-            transition: 'transform 0.15s'
-          }}
-        >
-          <XIcon size={30} />
-        </button>
-
-        <button
-          onClick={() => handleSwipe('like')}
-          title="Like"
-          style={{
-            width: '68px', height: '68px', borderRadius: '50%',
-            background: 'linear-gradient(135deg, #00f5d4, #05b49b)', border: 'none',
-            color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', boxShadow: '0 0 25px rgba(0, 245, 212, 0.6)',
-            transition: 'transform 0.15s'
-          }}
-        >
-          <HeartIcon />
-        </button>
-      </footer>
-
-      {/* Cloud Vault Drawer */}
+      {/* Modals & Drawers */}
       <CloudVault isOpen={isCloudVaultOpen} onClose={() => setIsCloudVaultOpen(false)} />
+      <RoleplayModal
+        isOpen={isRoleplayOpen}
+        onClose={() => setIsRoleplayOpen(false)}
+        character={activeRoleplayCompanion}
+      />
+      <RosterModal
+        isOpen={isRosterOpen}
+        onClose={() => setIsRosterOpen(false)}
+        onSelectCard={(card) => {
+          setDeck(prev => [card, ...prev]);
+          setActiveCardIndex(0);
+          showToast(`🎴 Loaded ${card.characterName} into the swipe matrix!`);
+        }}
+        onOpenChat={(card) => {
+          setActiveRoleplayCompanion(card);
+          setIsRoleplayOpen(true);
+        }}
+      />
+      <ThemeModal
+        isOpen={isThemeOpen}
+        onClose={() => setIsThemeOpen(false)}
+        selectedTheme={selectedTheme}
+        onSelectTheme={(th) => {
+          setSelectedTheme(th);
+          showToast(`🎯 Target Matrix shifted to ${th.toUpperCase()}!`);
+        }}
+      />
 
       {/* Toast Feedback */}
       {toastMessage && (
         <div style={{
-          position: 'fixed', bottom: '110px', left: '50%', transform: 'translateX(-50%)',
-          zIndex: 99999, background: 'rgba(12, 8, 23, 0.95)', border: '1px solid #00f5d4',
-          borderRadius: '12px', padding: '10px 18px', color: '#fff', fontSize: '13px',
+          position: 'fixed', bottom: '80px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 999999, background: 'rgba(12, 8, 23, 0.95)', border: '1px solid #00f5d4',
+          borderRadius: '12px', padding: '10px 18px', color: '#fff', fontSize: '12px',
           boxShadow: '0 8px 30px rgba(0,0,0,0.8), 0 0 15px rgba(0, 245, 212, 0.4)',
-          pointerEvents: 'none', backdropFilter: 'blur(10px)'
+          pointerEvents: 'none', backdropFilter: 'blur(10px)', fontFamily: "ui-monospace, monospace",
+          maxWidth: '90%', textAlign: 'center'
         }}>
           {toastMessage}
         </div>

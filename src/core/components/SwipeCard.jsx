@@ -419,7 +419,7 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
                 {/* ✨ MIKA'S ADAPTIVE ATMOSPHERE ENGINE ✨ */}
                 {enableAtmosphere && <AtmosphereEngine waifu={waifu} revealPhase={revealPhase} />}
                 
-                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.25) 38%, rgba(0,0,0,0) 66%)', pointerEvents: 'none', opacity: (isFaded || revealPhase !== 'revealed') ? 0 : 1, transition: 'opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 3 }}></div>
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.25) 38%, rgba(0,0,0,0) 66%)', pointerEvents: 'none', opacity: (revealPhase !== 'revealed') ? 0 : 1, transition: 'opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 3 }}></div>
                 <div style={{ position: 'absolute', inset: 0, boxShadow: 'inset 0 0 40px rgba(0,0,0,0.6), inset 0 0 10px rgba(255,255,255,0.15)', pointerEvents: 'none', zIndex: 1 }}></div>
             </div>
             
@@ -448,7 +448,7 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             <div style={{ 
                 position: 'absolute', left: 20, right: 20, bottom: 20, color: '#fff', 
                 display: 'flex', flexDirection: 'column', gap: 11, transform: 'translateZ(30px)', 
-                opacity: (isFaded || revealPhase !== 'revealed') ? 0 : 1, 
+                opacity: (revealPhase !== 'revealed') ? 0 : 1, 
                 pointerEvents: (isFaded || revealPhase !== 'revealed') ? 'none' : 'auto', 
                 transition: 'opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1)' 
             }}>
