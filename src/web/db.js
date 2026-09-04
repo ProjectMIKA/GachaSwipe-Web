@@ -3,10 +3,17 @@ import { useLiveQuery } from 'dexie-react-hooks';
 
 export const db = new Dexie('GachaSwipeWebDB');
 
-// Define IndexedDB schema
+// Define IndexedDB schema with version upgrades
 db.version(1).stores({
     cards: '++id, uuid, characterName, imageBlobOrUrl, audioBlobOrUrl, metadata, createdAt, isSynced',
     settings: 'key, value'
+});
+
+db.version(2).stores({
+    cards: '++id, uuid, characterName, imageBlobOrUrl, audioBlobOrUrl, metadata, createdAt, isSynced',
+    settings: 'key, value',
+    messages: '++id, companionId, role, content, imageUrl, timestamp',
+    gachafans: 'companionId, unlockedTiers, customSelfies, tips'
 });
 
 // --- Card Entity Helpers ---
@@ -43,6 +50,66 @@ export async function getCardCount() {
 
 export async function markCardSynced(id, isSynced = 1) {
     return await db.cards.update(id, { isSynced });
+}
+
+// --- Messages / Chat Storage Helpers ---
+
+export async function saveChatMessage(companionId, role, content, imageUrl = null) {
+    if (!companionId) return null;
+    const msg = {
+        companionId: String(companionId),
+        role,
+        content,
+        imageUrl,
+        timestamp: Date.now()
+    };
+    const id = await db.messages.add(msg);
+    return { ...msg, id };
+}
+
+export async function getChatMessages(companionId) {
+    if (!companionId) return [];
+    return await db.messages
+        .where('companionId')
+        .equals(String(companionId))
+        .sortBy('timestamp');
+}
+
+export async function clearChatMessages(companionId) {
+    if (!companionId) return;
+    const keys = await db.messages
+        .where('companionId')
+        .equals(String(companionId))
+        .primaryKeys();
+    return await db.messages.bulkDelete(keys);
+}
+
+export function useChatMessages(companionId) {
+    return useLiveQuery(
+        () => companionId ? db.messages.where('companionId').equals(String(companionId)).sortBy('timestamp') : [],
+        [companionId]
+    ) || [];
+}
+
+// --- GachaFans Storage Helpers ---
+
+export async function getGachaFansData(companionId) {
+    if (!companionId) return null;
+    const record = await db.gachafans.get(String(companionId));
+    return record || {
+        companionId: String(companionId),
+        unlockedTiers: [1], // Tier 1 (Free) always unlocked
+        customSelfies: [],
+        tips: 0
+    };
+}
+
+export async function saveGachaFansData(companionId, data) {
+    if (!companionId) return;
+    return await db.gachafans.put({
+        companionId: String(companionId),
+        ...data
+    });
 }
 
 // --- Settings & Secure BYOK Key Helpers ---

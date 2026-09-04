@@ -511,7 +511,14 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
                                 </span>
                             )}
                             {waifu.hasGachaFans && (
-                                <span style={{ fontSize: 10, fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 900, color: '#000', border: '1px solid #00E5FF', background: '#00E5FF', backdropFilter: 'blur(4px)', borderRadius: 4, padding: '4px 8px', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 0 10px rgba(0,229,255,0.5)' }}>
+                                <span 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (onOpenGachaFans) onOpenGachaFans(waifu);
+                                    }}
+                                    style={{ fontSize: 10, fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 900, color: '#000', border: '1px solid #00E5FF', background: '#00E5FF', backdropFilter: 'blur(4px)', borderRadius: 4, padding: '4px 8px', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 0 10px rgba(0,229,255,0.5)', cursor: 'pointer' }}
+                                    title="Open GachaFans VIP Portal"
+                                >
                                     <LockIcon size={11} /> GACHAFANS
                                 </span>
                             )}
