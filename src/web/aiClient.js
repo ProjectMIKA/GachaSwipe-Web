@@ -1148,12 +1148,34 @@ export async function generateCharacterImage({ prompt, model, aspectRatio = "9:1
         }
 
         const data = await res.json();
-        const imageUrl = data.data?.[0]?.url 
+        let imageUrl = data.data?.[0]?.url 
             || data.output?.[0] 
             || data.images?.[0]?.url 
             || (data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : null);
 
         if (!imageUrl) throw new AIClientError("No image returned by NanoGPT.", 500, "EMPTY_RESPONSE", "nanogpt");
+
+        // ✨ Convert remote CDN image URLs to persistent base64 data URIs immediately so they never expire!
+        if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+            try {
+                if (onProgress) onProgress("Archiving neural portrait...", totalSteps, totalSteps);
+                const imgFetch = await fetch(imageUrl);
+                if (imgFetch.ok) {
+                    const blob = await imgFetch.blob();
+                    const b64 = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                    if (b64 && typeof b64 === 'string') {
+                        imageUrl = b64;
+                    }
+                }
+            } catch (fetchErr) {
+                console.warn("[M.I.K.A API] Remote image fetch to base64 failed, retaining direct URL:", fetchErr);
+            }
+        }
 
         if (onProgress) onProgress("Neural portrait complete!", totalSteps, totalSteps);
         return imageUrl;

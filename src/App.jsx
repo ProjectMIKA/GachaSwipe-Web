@@ -21,6 +21,7 @@ import { ForgeCategoryAccordion } from './components/ForgeCategoryAccordion.jsx'
 import { MatrixShooter } from './components/MatrixShooter.jsx';
 import { HolographicMessage, CyberAudioNote, formatMessageText } from './components/RoleplayRenderer.jsx';
 import { PwaInstallModal } from './components/PwaInstallModal.jsx';
+import { db } from './web/db.js';
 
 const JrpgSpeechBubble = ({ text, pColor, isBattleActive, formatMessageText, isLeft, isRight, isCenter, isHidden }) => (
     <div style={{ position: 'absolute', bottom: isBattleActive ? 'calc(100% + 20px)' : 'calc(100% + 10px)', [isLeft ? 'left' : (isRight ? 'right' : 'left')]: '50%', transform: `translateX(${isLeft ? '0' : (isRight ? '0' : '-50%')}) scale(${isHidden ? 0.8 : 1})`, width: 'max-content', maxWidth: '240px', zIndex: 120, opacity: isHidden ? 0.3 : 1, filter: isHidden ? 'blur(4px)' : 'none', transition: 'all 0.5s ease' }}>
@@ -2661,14 +2662,39 @@ Output strictly inside these XML tags:
     const extractAndSaveMedia = async (obj, chatId) => {
         if (!obj || typeof obj !== 'object') return;
         for (const key in obj) {
-            if (key === 'imageUrl' && typeof obj[key] === 'string' && obj[key].startsWith('data:image')) {
-                try {
-                    const b64 = obj[key].split(',')[1];
-                    const hash = b64.substring(b64.length - 15).replace(/[^a-zA-Z0-9]/g, '');
-                    const fileName = `media_${chatId}_${hash}.png`;
-                    await layla.utils.saveFile(fileName, b64, false);
-                    obj[key] = fileName; // ✨ MIKA'S FIX: Save just the native relative filename!
-                } catch (e) { }
+            if (key === 'imageUrl' && typeof obj[key] === 'string') {
+                const val = obj[key];
+                if (val.startsWith('data:image')) {
+                    try {
+                        const b64 = val.split(',')[1];
+                        const hash = b64.substring(b64.length - 15).replace(/[^a-zA-Z0-9]/g, '');
+                        const fileName = `media_${chatId}_${hash}.png`;
+                        await layla.utils.saveFile(fileName, b64, false);
+                        obj[key] = fileName; // ✨ MIKA'S FIX: Save just the native relative filename!
+                    } catch (e) { }
+                } else if (val.startsWith('http://') || val.startsWith('https://')) {
+                    try {
+                        const res = await fetch(val, { mode: 'cors' });
+                        if (res.ok) {
+                            const blob = await res.blob();
+                            const b64 = await new Promise((resolve, reject) => {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                    const result = reader.result;
+                                    resolve(typeof result === 'string' && result.includes(',') ? result.split(',')[1] : '');
+                                };
+                                reader.onerror = reject;
+                                reader.readAsDataURL(blob);
+                            });
+                            if (b64) {
+                                const hash = b64.substring(b64.length - 15).replace(/[^a-zA-Z0-9]/g, '');
+                                const fileName = `media_${chatId}_${hash}.png`;
+                                await layla.utils.saveFile(fileName, b64, false);
+                                obj[key] = fileName;
+                            }
+                        }
+                    } catch (e) { }
+                }
             } else if (typeof obj[key] === 'object') {
                 await extractAndSaveMedia(obj[key], chatId);
             }
@@ -2683,6 +2709,82 @@ Output strictly inside these XML tags:
                 obj[key] = obj[key].split('local:')[1];
             } else if (typeof obj[key] === 'object') {
                 sanitizeMediaPaths(obj[key]);
+            }
+        }
+    };
+
+    // ✨ MIKA'S HIGH-SPEED MEDIA INFLATOR & RECOVERY MATRIX ✨
+    const inflateMedia = async (obj, targetChatId = null) => {
+        if (!obj || typeof obj !== 'object') return;
+        for (const key in obj) {
+            if (key === 'imageUrl' && typeof obj[key] === 'string') {
+                const val = obj[key];
+                // Check if it's a relative media file reference
+                if (val && !val.startsWith('data:') && !val.startsWith('http://') && !val.startsWith('https://') && !val.startsWith('blob:')) {
+                    const cleanName = val.replace(/^local:/, '').replace(/^\//, '');
+                    let restored = false;
+
+                    // 1. Primary: Read from virtual filesystem (db.files via layla.utils)
+                    try {
+                        const vf = await layla.utils.readFile(cleanName);
+                        if (vf && vf.content_base64) {
+                            const b64 = vf.content_base64;
+                            obj[key] = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
+                            restored = true;
+                        }
+                    } catch (e) { }
+
+                    // 1b. Fuzzy search in db.files if exact filename failed
+                    if (!restored) {
+                        try {
+                            const allFiles = await db.files.toArray();
+                            const matchedFile = allFiles.find(f => f.filename === cleanName || f.filename.endsWith(cleanName) || cleanName.endsWith(f.filename));
+                            if (matchedFile && matchedFile.content_base64) {
+                                const b64 = matchedFile.content_base64;
+                                obj[key] = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
+                                restored = true;
+                            }
+                        } catch (e) { }
+                    }
+
+                    // 2. Secondary: Fallback to db.cards by ID or character name
+                    if (!restored) {
+                        try {
+                            const charId = obj.id || obj.uuid || targetChatId;
+                            if (charId) {
+                                const card = await db.cards.where('uuid').equals(String(charId)).first();
+                                if (card && card.imageBlobOrUrl && (card.imageBlobOrUrl.startsWith('data:') || card.imageBlobOrUrl.startsWith('http'))) {
+                                    obj[key] = card.imageBlobOrUrl;
+                                    restored = true;
+                                    try {
+                                        let b64 = card.imageBlobOrUrl;
+                                        if (b64.includes(',')) b64 = b64.split(',')[1];
+                                        await layla.utils.saveFile(cleanName, b64, false);
+                                    } catch (e2) { }
+                                }
+                            }
+                            if (!restored && obj.name) {
+                                const cardByName = await db.cards.where('characterName').equals(String(obj.name)).first();
+                                if (cardByName && cardByName.imageBlobOrUrl && (cardByName.imageBlobOrUrl.startsWith('data:') || cardByName.imageBlobOrUrl.startsWith('http'))) {
+                                    obj[key] = cardByName.imageBlobOrUrl;
+                                    restored = true;
+                                    try {
+                                        let b64 = cardByName.imageBlobOrUrl;
+                                        if (b64.includes(',')) b64 = b64.split(',')[1];
+                                        await layla.utils.saveFile(cleanName, b64, false);
+                                    } catch (e2) { }
+                                }
+                            }
+                        } catch (e) { }
+                    }
+
+                    // 3. Fallback: If unresolvable, assign default avatar instead of broken URL
+                    if (!restored) {
+                        obj[key] = DEFAULT_PROXY.imageUrl;
+                    }
+                }
+            } else if (typeof obj[key] === 'object') {
+                await inflateMedia(obj[key], targetChatId || obj.id || obj.uuid || null);
             }
         }
     };
@@ -3332,8 +3434,8 @@ Output strictly inside these XML tags:
                             .filter(w => w && typeof w === 'object' && w.id !== 'intro')
                             .map(w => ({ ...w, isRegenerating: false, regenStatus: '', regenStep: 0, regenTotalSteps: 0 }));
                         // Strictly clamp active queue to at most 1 card! No background pre-buffering!
-                        if (finalQueue.length > 1) {
-                            finalQueue = [finalQueue[0]];
+                        if (finalQueue.length > 0) {
+                            await inflateMedia(finalQueue);
                         }
                     }
 
@@ -3387,6 +3489,7 @@ Output strictly inside these XML tags:
                             const loadedHistory = typeof row.val === 'string' ? JSON.parse(row.val) : row.val;
                             if (Array.isArray(loadedHistory)) {
                                 sanitizeMediaPaths(loadedHistory);
+                                await inflateMedia(loadedHistory);
                                 setSessionHistory(loadedHistory);
                             }
                         } catch (e) {
@@ -3430,6 +3533,7 @@ Output strictly inside these XML tags:
                             try {
                                 const chatData = typeof rowData.data === 'string' ? JSON.parse(rowData.data) : rowData.data;
                                 sanitizeMediaPaths(chatData);
+                                await inflateMedia(chatData, idRow.id);
                                 const limit = chatData.isGroup ? 1000 : 500;
                                 if (chatData.messages && chatData.messages.length > limit) {
                                     chatData.messages = pruneMessages(chatData.messages, limit);
@@ -15308,7 +15412,7 @@ Output ONLY the ad text. No questions, no roleplay, no preamble.`;
                                                         setPendingFreshImport({ char, d, ext });
                                                     }
                                                 }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', background: 'rgba(0, 229, 255, 0.05)', padding: '12px 8px', borderRadius: '12px', border: '1px solid rgba(0, 229, 255, 0.2)', transition: 'transform 0.2s', animation: `csd-rise 0.3s ease forwards`, opacity: 0, animationDelay: `${Math.min(index * 0.05, 0.5)}s`, boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }} onMouseOver={e => e.currentTarget.style.background = 'rgba(0,229,255,0.1)'} onMouseOut={e => e.currentTarget.style.background = 'rgba(0,229,255,0.05)'}>
-                                                    <img src={char.imageUrl || DEFAULT_PROXY.imageUrl} style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #00E5FF', marginBottom: '8px' }} />
+                                                    <img src={char.imageUrl || DEFAULT_PROXY.imageUrl} onError={(e) => { if (e.currentTarget.src !== DEFAULT_PROXY.imageUrl) e.currentTarget.src = DEFAULT_PROXY.imageUrl; }} style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #00E5FF', marginBottom: '8px' }} />
                                                     <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#fff', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>{char.data.data.name}</span>
                                                 </div>
                                             ))
@@ -15654,7 +15758,7 @@ Output ONLY the ad text. No questions, no roleplay, no preamble.`;
                                                 <div key={chat.waifu.id} style={{ borderRadius: '4px', border: '1px solid rgba(0, 229, 255, 0.2)', background: 'rgba(0, 229, 255, 0.03)', overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.6)' }}>
                                                     <div style={{ padding: '12px 16px', background: 'rgba(0, 229, 255, 0.05)', borderBottom: '1px solid rgba(0, 229, 255, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
-                                                            <img src={chat.waifu.imageUrl} style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid var(--accent)', objectFit: 'cover', flexShrink: 0 }} />
+                                                            <img src={chat.waifu.imageUrl || DEFAULT_PROXY.imageUrl} onError={(e) => { if (e.currentTarget.src !== DEFAULT_PROXY.imageUrl) e.currentTarget.src = DEFAULT_PROXY.imageUrl; }} style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid var(--accent)', objectFit: 'cover', flexShrink: 0 }} />
                                                             <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, width: '100%' }}>
                                                                 <div className="smart-scroll-box" style={{ width: '100%' }}>
                                                                     <span className="smart-scroll-content" style={{ margin: 0, color: '#C8E8F0', fontSize: '14px', fontWeight: 'bold', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", letterSpacing: '0.02em' }}>
@@ -15798,11 +15902,11 @@ Output ONLY the ad text. No questions, no roleplay, no preamble.`;
                                                         {chat.isGroup ? (
                                                             <div style={{ width: '56px', height: '56px', position: 'relative' }}>
                                                                 {chat.participants.slice(0, 2).map((p, i) => (
-                                                                    <img key={p.id} src={p.imageUrl} style={{ width: '36px', height: '36px', borderRadius: '50%', position: 'absolute', top: i === 0 ? 0 : '20px', left: i === 0 ? 0 : '20px', border: '2px solid #000', objectFit: 'cover', zIndex: i === 0 ? 2 : 1 }} />
+                                                                    <img key={p.id} src={p.imageUrl || DEFAULT_PROXY.imageUrl} onError={(e) => { if (e.currentTarget.src !== DEFAULT_PROXY.imageUrl) e.currentTarget.src = DEFAULT_PROXY.imageUrl; }} style={{ width: '36px', height: '36px', borderRadius: '50%', position: 'absolute', top: i === 0 ? 0 : '20px', left: i === 0 ? 0 : '20px', border: '2px solid #000', objectFit: 'cover', zIndex: i === 0 ? 2 : 1 }} />
                                                                 ))}
                                                             </div>
                                                         ) : (
-                                                            <img src={chat.waifu?.imageUrl || DEFAULT_PROXY.imageUrl} style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover', opacity: (chat.status === 'blocked' || chat.status === 'blocked_by_match') ? 0.4 : 1 }} />
+                                                            <img src={chat.waifu?.imageUrl || DEFAULT_PROXY.imageUrl} onError={(e) => { if (e.currentTarget.src !== DEFAULT_PROXY.imageUrl) e.currentTarget.src = DEFAULT_PROXY.imageUrl; }} style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover', opacity: (chat.status === 'blocked' || chat.status === 'blocked_by_match') ? 0.4 : 1 }} />
                                                         )}
                                                         {chat.hasUnread && <span style={{ position: 'absolute', top: 0, right: 0, width: '12px', height: '12px', borderRadius: '50%', background: 'var(--accent)', border: '2px solid #000', zIndex: 5 }}></span>}
                                                     </div>
