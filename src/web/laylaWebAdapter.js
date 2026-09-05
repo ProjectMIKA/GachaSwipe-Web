@@ -604,11 +604,21 @@ export class LaylaWebSDK {
                 ];
             },
             generateVoiceToFile: async (voiceId, text) => {
+                let isEnabled = false;
+                try {
+                    const setting = await getSetting('enable_tts_standard', false);
+                    isEnabled = Boolean(setting);
+                } catch (e) {
+                    isEnabled = false;
+                }
+                if (!isEnabled) {
+                    return { success: false, filename: null, error: "TTS is disabled by default" };
+                }
                 if (typeof window !== "undefined" && window.speechSynthesis) {
                     const utterance = new SpeechSynthesisUtterance(text);
                     window.speechSynthesis.speak(utterance);
                 }
-                return { filename: "tts_" + Date.now() + ".wav" };
+                return { success: true, filename: "tts_" + Date.now() + ".wav" };
             }
         };
     }

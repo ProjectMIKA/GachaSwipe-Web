@@ -173,9 +173,9 @@ export const AdaptiveHUD = ({
         getSetting('enable_atmosphere').then(v => { if (v !== null) setEnableAtmosphere(Boolean(v)); });
         getSetting('cinematic_chat_bg').then(v => { if (v !== null) setCinematicChatBg(Boolean(v)); });
         getSetting('enable_scanlines').then(v => { if (v !== null) setEnableScanlines(Boolean(v)); });
-        getSetting('enable_tts_standard').then(v => { if (v !== null) setEnableTtsStandard(Boolean(v)); });
-        getSetting('enable_tts_group').then(v => { if (v !== null) setEnableTtsGroup(Boolean(v)); });
-        getSetting('tts_auto_play').then(v => { if (v !== null) setTtsAutoPlay(Boolean(v)); });
+        getSetting('enable_tts_standard', false).then(v => { setEnableTtsStandard(Boolean(v)); });
+        getSetting('enable_tts_group', false).then(v => { setEnableTtsGroup(Boolean(v)); });
+        getSetting('tts_auto_play', false).then(v => { setTtsAutoPlay(Boolean(v)); });
         getSetting('tts_cache_limit').then(v => { if (v !== null) setTtsCacheLimit(Number(v)); });
         getSetting('user_name').then(v => { if (v) setUserName(v); });
         getSetting('user_gender').then(v => { if (v) setUserGender(v); });

@@ -13,9 +13,23 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
     // ✨ MIKA'S AUTOMATED DRAMA ENGINE ✨
     // Phases: 'hyping' -> 'hype_fade' -> 'cinematic'/'intro_pan' -> 'revealed'
     const [revealPhase, setRevealPhase] = useState(waifu.id === 'intro' ? 'revealed' : 'hyping'); // Skip buffer for pause cards!
+    const [imgOrientation, setImgOrientation] = useState('portrait');
     const [isFaded, setIsFaded] = useState(false);
     const fadeTimerRef = useRef(null);
     const stopPropagation = e => e.stopPropagation();
+
+    const handleImageLoad = useCallback((e) => {
+        const { naturalWidth, naturalHeight } = e.currentTarget;
+        if (naturalWidth && naturalHeight) {
+            setImgOrientation(naturalWidth > naturalHeight * 1.05 ? 'landscape' : 'portrait');
+        }
+    }, []);
+
+    // ✨ MIKA'S RELOAD HOOK: Reset reveal state when waifu ID changes ✨
+    useEffect(() => {
+        setRevealPhase(waifu.id === 'intro' ? 'revealed' : 'hyping');
+        setShowDetails(false);
+    }, [waifu.id]);
 
     // ✨ MIKA'S DECOUPLED CAMERA ENGINE ✨
     const cameraSettings = useMemo(() => {
@@ -201,9 +215,9 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             75% { object-position: var(--p2e); transform: scale(1.8); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
             
             85% { filter: blur(12px) brightness(1.6) saturate(1.1); opacity: 1; }
-            /* Arrives safely at idle pan position and holds for timer */
-            95% { object-position: 0% 50%; transform: scale(1.0); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
-            100% { object-position: 0% 50%; transform: scale(1.0); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
+            /* Arrives safely at face focus (50% 0%) so head is never cropped */
+            95% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
+            100% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
         }
 
         /* 2. Intense Push-In */
@@ -219,8 +233,8 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             75% { object-position: var(--p2e); transform: scale(2.8); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
             
             85% { filter: blur(12px) brightness(1.6) saturate(1.1); opacity: 1; }
-            95% { object-position: 0% 50%; transform: scale(1.0); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
-            100% { object-position: 0% 50%; transform: scale(1.0); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
+            95% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); opacity: 1; }
+            100% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); opacity: 1; }
         }
 
         /* 3. Chaos Bounce */
@@ -236,8 +250,8 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             75% { object-position: var(--p2e); transform: scale(2.2); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
             
             85% { filter: blur(12px) brightness(1.6) saturate(1.1); opacity: 1; }
-            95% { object-position: 0% 50%; transform: scale(1.0); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
-            100% { object-position: 0% 50%; transform: scale(1.0); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
+            95% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); opacity: 1; }
+            100% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); opacity: 1; }
         }
 
         /* 4. Steady Drift */
@@ -253,8 +267,8 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             75% { object-position: var(--p2e); transform: scale(2.2); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
             
             85% { filter: blur(12px) brightness(1.6) saturate(1.1); opacity: 1; }
-            95% { object-position: 0% 50%; transform: scale(1.0); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
-            100% { object-position: 0% 50%; transform: scale(1.0); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
+            95% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); opacity: 1; }
+            100% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); opacity: 1; }
         }
 
         /* ✨ NORMAL LENS EFFECTS (3.2s duration for a luxurious settle) ✨ */
@@ -265,9 +279,9 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             50% { object-position: var(--p1e); transform: scale(1.3); filter: blur(0px) brightness(1.0); } 
             
             75% { filter: blur(8px) brightness(1.2); } 
-            /* Arrives safely at idle pan position and holds for timer */
-            95% { object-position: 0% 50%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
-            100% { object-position: 0% 50%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
+            /* Arrives safely at face focus (50% 0%) and holds for timer */
+            95% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
+            100% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
         }
 
         @keyframes normLens_focus { 
@@ -277,8 +291,8 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             50% { object-position: var(--p1e); transform: scale(1.5); filter: blur(0px) brightness(1.0); } 
             
             75% { filter: blur(8px) brightness(1.2); } 
-            95% { object-position: 0% 50%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
-            100% { object-position: 0% 50%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
+            95% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
+            100% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
         }
 
         @keyframes normLens_glide { 
@@ -288,8 +302,33 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             50% { object-position: var(--p1e); transform: scale(1.3); filter: blur(0px) brightness(1.0); } 
             
             75% { filter: blur(8px) brightness(1.2); } 
-            95% { object-position: 0% 50%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
-            100% { object-position: 0% 50%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
+            95% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
+            100% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
+        }
+
+        /* ✨ MIKA'S BEAUTIFUL CARD PANNING & SCROLLING ENGINE ✨ */
+        @keyframes waifuPortraitScroll {
+            0%, 14% {
+                object-position: 50% 0%;
+            }
+            48%, 62% {
+                object-position: 50% 100%;
+            }
+            94%, 100% {
+                object-position: 50% 0%;
+            }
+        }
+
+        @keyframes waifuLandscapeScroll {
+            0%, 14% {
+                object-position: 0% 50%;
+            }
+            48%, 62% {
+                object-position: 100% 50%;
+            }
+            94%, 100% {
+                object-position: 0% 50%;
+            }
         }
                 `}</style>
 
@@ -394,24 +433,36 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
                         </div>
                     </div>
                 ) : waifu.imageUrl ? (
-                    <img src={waifu.imageUrl} alt="" style={{ 
-                        position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', 
-                        /* MIKA'S DYNAMIC CAMERA VARIABLES */
-                        '--p1s': cameraSettings.p1s, '--p1e': cameraSettings.p1e,
-                        '--p2s': cameraSettings.p2s, '--p2e': cameraSettings.p2e,
-                        '--p3s': cameraSettings.p3s, '--p3e': cameraSettings.p3e,
-                        /* MIKA'S CAMERA DIRECTOR ANIMATION */
-                        animation: waifu.id === 'intro' 
-                            ? 'none' 
-                            : ((revealPhase === 'hyping' || revealPhase === 'hype_fade'))
-                            ? `ssrHypeZoom ${waifu.isSSR ? '4.4s' : '3.1s'} cubic-bezier(0.2, 0.8, 0.2, 1) forwards`
-                            : (waifu.isSSR && revealPhase === 'cinematic') 
-                            ? `${cameraSettings.anim} 5.2s ease-out forwards` 
-                            : (!waifu.isSSR && revealPhase === 'intro_pan') 
-                            ? `${cameraSettings.anim} 3.2s ease-out forwards` 
-                            : 'subtlePan 35s ease-in-out infinite', 
-                        transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), filter 0.5s ease'
-                    }} />
+                    <img 
+                        src={waifu.imageUrl} 
+                        alt="" 
+                        onLoad={handleImageLoad}
+                        style={{ 
+                            position: 'absolute', 
+                            inset: 0, 
+                            width: '100%', 
+                            height: '100%', 
+                            objectFit: 'cover', 
+                            objectPosition: imgOrientation === 'landscape' ? '0% 50%' : '50% 0%',
+                            /* MIKA'S DYNAMIC CAMERA VARIABLES */
+                            '--p1s': cameraSettings.p1s, '--p1e': cameraSettings.p1e,
+                            '--p2s': cameraSettings.p2s, '--p2e': cameraSettings.p2e,
+                            '--p3s': cameraSettings.p3s, '--p3e': cameraSettings.p3e,
+                            /* MIKA'S CAMERA DIRECTOR ANIMATION */
+                            animation: waifu.id === 'intro' 
+                                ? 'none' 
+                                : ((revealPhase === 'hyping' || revealPhase === 'hype_fade'))
+                                ? `ssrHypeZoom ${waifu.isSSR ? '4.4s' : '3.1s'} cubic-bezier(0.2, 0.8, 0.2, 1) forwards`
+                                : (waifu.isSSR && revealPhase === 'cinematic') 
+                                ? `${cameraSettings.anim} 5.2s ease-out forwards` 
+                                : (!waifu.isSSR && revealPhase === 'intro_pan') 
+                                ? `${cameraSettings.anim} 3.2s ease-out forwards` 
+                                : imgOrientation === 'landscape'
+                                ? 'waifuLandscapeScroll 22s ease-in-out infinite'
+                                : 'waifuPortraitScroll 22s ease-in-out infinite', 
+                            transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), filter 0.5s ease'
+                        }} 
+                    />
                 ) : (
                     <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontSize: '40px' }}>🖼️</div>
                 )}

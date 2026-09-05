@@ -14944,7 +14944,7 @@ Output ONLY the ad text. No questions, no roleplay, no preamble.`;
 
                         return (
                             <SwipeCard
-                                key={waifu.name + index}
+                                key={waifu.id || (waifu.name + index)}
                                 waifu={waifu}
                                 preferences={preferences}
                                 style={style}
