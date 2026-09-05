@@ -814,7 +814,10 @@ export const AdaptiveHUD = ({
 
             {/* Top HUD Bar */}
             <div style={{
-                padding: '14px 16px',
+                paddingTop: 'max(14px, env(safe-area-inset-top, 14px))',
+                paddingLeft: 'max(16px, env(safe-area-inset-left, 16px))',
+                paddingRight: 'max(16px, env(safe-area-inset-right, 16px))',
+                paddingBottom: '14px',
                 background: 'linear-gradient(180deg, rgba(0, 255, 157, 0.12) 0%, rgba(5, 3, 8, 0.8) 100%)',
                 borderBottom: '1px solid rgba(0, 255, 157, 0.25)',
                 display: 'flex',
@@ -889,16 +892,23 @@ export const AdaptiveHUD = ({
                         <button
                             onClick={onCloseMobileDrawer}
                             style={{
-                                background: 'transparent',
-                                border: '1px solid rgba(0, 255, 157, 0.3)',
+                                background: 'rgba(0, 255, 157, 0.1)',
+                                border: '1px solid rgba(0, 255, 157, 0.4)',
                                 color: '#00ff9d',
                                 borderRadius: '4px',
-                                padding: '2px 7px',
+                                padding: '4px 10px',
+                                minWidth: '32px',
+                                minHeight: '28px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                                 cursor: 'pointer',
-                                fontSize: '11px',
-                                fontWeight: 'bold'
+                                fontSize: '13px',
+                                fontWeight: 'bold',
+                                transition: 'all 0.15s ease'
                             }}
                             title="Close HUD"
+                            aria-label="Close HUD"
                         >
                             ✕
                         </button>
