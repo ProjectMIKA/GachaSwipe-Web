@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
     getSetting, 
     setSetting, 
@@ -77,6 +77,22 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
     const [isLoadingImageModels, setIsLoadingImageModels] = useState(false);
     const [imageModelSearch, setImageModelSearch] = useState('');
     const [selectedImageCategory, setSelectedImageCategory] = useState('ALL');
+
+    // Category Pill Refs for Horizontal Button Scrolling
+    const chatPillsRef = useRef(null);
+    const imagePillsRef = useRef(null);
+
+    const scrollChatPills = (direction) => {
+        if (chatPillsRef.current) {
+            chatPillsRef.current.scrollBy({ left: direction * 140, behavior: 'smooth' });
+        }
+    };
+
+    const scrollImagePills = (direction) => {
+        if (imagePillsRef.current) {
+            imagePillsRef.current.scrollBy({ left: direction * 140, behavior: 'smooth' });
+        }
+    };
 
     // Telemetry Ping State
     const [isPinging, setIsPinging] = useState(false);
@@ -1147,48 +1163,116 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                             }}
                         />
 
-                        {providerOptions.length > 2 && (
-                            <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '4px' }}>
-                                {providerOptions.slice(0, 10).map(org => {
-                                    const isSelected = selectedProviderFilter === org;
-                                    const isSubPill = org === 'SUBSCRIPTION';
-                                    return (
-                                        <button
-                                            key={org}
-                                            onClick={() => {
-                                                if (isSubPill) {
-                                                    handleSetSubOnlyChat(true);
-                                                } else {
-                                                    setSelectedProviderFilter(org);
-                                                    if (org === 'ALL') {
-                                                        handleSetSubOnlyChat(false);
+                        {providerOptions.length > 1 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => scrollChatPills(-1)}
+                                    style={{
+                                        width: '22px',
+                                        height: '24px',
+                                        padding: '0',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        background: 'rgba(0, 255, 157, 0.1)',
+                                        border: '1px solid rgba(0, 255, 157, 0.4)',
+                                        borderRadius: '3px',
+                                        color: '#00ff9d',
+                                        cursor: 'pointer',
+                                        fontSize: '9px',
+                                        fontWeight: 900,
+                                        flexShrink: 0,
+                                        transition: 'all 0.15s ease'
+                                    }}
+                                    title="Scroll categories left"
+                                    aria-label="Scroll left"
+                                >
+                                    ◀
+                                </button>
+
+                                <div 
+                                    ref={chatPillsRef}
+                                    className="hide-scrollbar"
+                                    style={{ 
+                                        display: 'flex', 
+                                        gap: '4px', 
+                                        overflowX: 'auto', 
+                                        scrollbarWidth: 'none',
+                                        msOverflowStyle: 'none',
+                                        WebkitOverflowScrolling: 'touch',
+                                        flex: 1,
+                                        padding: '2px 0'
+                                    }}
+                                >
+                                    {providerOptions.map(org => {
+                                        const isSelected = selectedProviderFilter === org;
+                                        const isSubPill = org === 'SUBSCRIPTION';
+                                        return (
+                                            <button
+                                                key={org}
+                                                onClick={() => {
+                                                    if (isSubPill) {
+                                                        handleSetSubOnlyChat(true);
+                                                    } else {
+                                                        setSelectedProviderFilter(org);
+                                                        if (org === 'ALL') {
+                                                            handleSetSubOnlyChat(false);
+                                                        }
                                                     }
-                                                }
-                                            }}
-                                            style={{
-                                                padding: '2px 8px',
-                                                fontSize: '9px',
-                                                borderRadius: '3px',
-                                                border: '1px solid',
-                                                cursor: 'pointer',
-                                                whiteSpace: 'nowrap',
-                                                fontWeight: isSelected || isSubPill ? 'bold' : 'normal',
-                                                background: isSelected 
-                                                    ? (isSubPill ? 'rgba(255, 215, 0, 0.25)' : 'rgba(0, 255, 157, 0.2)') 
-                                                    : (isSubPill ? 'rgba(255, 215, 0, 0.08)' : 'transparent'),
-                                                borderColor: isSelected 
-                                                    ? (isSubPill ? '#ffd700' : '#00ff9d') 
-                                                    : (isSubPill ? 'rgba(255, 215, 0, 0.35)' : 'rgba(255, 255, 255, 0.1)'),
-                                                color: isSelected 
-                                                    ? (isSubPill ? '#ffd700' : '#00ff9d') 
-                                                    : (isSubPill ? '#ffd700' : 'rgba(255, 255, 255, 0.5)'),
-                                                boxShadow: isSelected && isSubPill ? '0 0 8px rgba(255, 215, 0, 0.35)' : 'none'
-                                            }}
-                                        >
-                                            {isSubPill ? `💎 SUB (${subChatCount})` : org.toUpperCase()}
-                                        </button>
-                                    );
-                                })}
+                                                }}
+                                                style={{
+                                                    padding: '3px 8px',
+                                                    fontSize: '9px',
+                                                    borderRadius: '3px',
+                                                    border: '1px solid',
+                                                    cursor: 'pointer',
+                                                    whiteSpace: 'nowrap',
+                                                    flexShrink: 0,
+                                                    fontWeight: isSelected || isSubPill ? 'bold' : 'normal',
+                                                    background: isSelected 
+                                                        ? (isSubPill ? 'rgba(255, 215, 0, 0.25)' : 'rgba(0, 255, 157, 0.2)') 
+                                                        : (isSubPill ? 'rgba(255, 215, 0, 0.08)' : 'transparent'),
+                                                    borderColor: isSelected 
+                                                        ? (isSubPill ? '#ffd700' : '#00ff9d') 
+                                                        : (isSubPill ? 'rgba(255, 215, 0, 0.35)' : 'rgba(255, 255, 255, 0.15)'),
+                                                    color: isSelected 
+                                                        ? (isSubPill ? '#ffd700' : '#00ff9d') 
+                                                        : (isSubPill ? '#ffd700' : 'rgba(255, 255, 255, 0.6)'),
+                                                    boxShadow: isSelected && isSubPill ? '0 0 8px rgba(255, 215, 0, 0.35)' : 'none'
+                                                }}
+                                            >
+                                                {isSubPill ? `💎 SUB (${subChatCount})` : org.toUpperCase()}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => scrollChatPills(1)}
+                                    style={{
+                                        width: '22px',
+                                        height: '24px',
+                                        padding: '0',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        background: 'rgba(0, 255, 157, 0.1)',
+                                        border: '1px solid rgba(0, 255, 157, 0.4)',
+                                        borderRadius: '3px',
+                                        color: '#00ff9d',
+                                        cursor: 'pointer',
+                                        fontSize: '9px',
+                                        fontWeight: 900,
+                                        flexShrink: 0,
+                                        transition: 'all 0.15s ease'
+                                    }}
+                                    title="Scroll categories right"
+                                    aria-label="Scroll right"
+                                >
+                                    ▶
+                                </button>
                             </div>
                         )}
                     </div>
@@ -1376,47 +1460,115 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                         />
 
                         {/* Category Buttons */}
-                        <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '4px' }}>
-                            {['ALL', 'subscription', 'flux', 'anime', 'civitai', 'openai', 'stability'].map(cat => {
-                                const isSelected = selectedImageCategory === cat;
-                                const isSub = cat === 'subscription';
-                                return (
-                                    <button
-                                        key={cat}
-                                        onClick={() => {
-                                            if (isSub) {
-                                                handleSetSubOnlyImage(true);
-                                            } else {
-                                                setSelectedImageCategory(cat);
-                                                if (cat === 'ALL') {
-                                                    handleSetSubOnlyImage(false);
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
+                            <button
+                                type="button"
+                                onClick={() => scrollImagePills(-1)}
+                                style={{
+                                    width: '22px',
+                                    height: '24px',
+                                    padding: '0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    background: 'rgba(255, 16, 122, 0.1)',
+                                    border: '1px solid rgba(255, 16, 122, 0.4)',
+                                    borderRadius: '3px',
+                                    color: '#ff107a',
+                                    cursor: 'pointer',
+                                    fontSize: '9px',
+                                    fontWeight: 900,
+                                    flexShrink: 0,
+                                    transition: 'all 0.15s ease'
+                                }}
+                                title="Scroll categories left"
+                                aria-label="Scroll left"
+                            >
+                                ◀
+                            </button>
+
+                            <div 
+                                ref={imagePillsRef}
+                                className="hide-scrollbar"
+                                style={{ 
+                                    display: 'flex', 
+                                    gap: '4px', 
+                                    overflowX: 'auto', 
+                                    scrollbarWidth: 'none',
+                                    msOverflowStyle: 'none',
+                                    WebkitOverflowScrolling: 'touch',
+                                    flex: 1,
+                                    padding: '2px 0'
+                                }}
+                            >
+                                {['ALL', 'subscription', 'flux', 'anime', 'civitai', 'openai', 'stability'].map(cat => {
+                                    const isSelected = selectedImageCategory === cat;
+                                    const isSub = cat === 'subscription';
+                                    return (
+                                        <button
+                                            key={cat}
+                                            onClick={() => {
+                                                if (isSub) {
+                                                    handleSetSubOnlyImage(true);
+                                                } else {
+                                                    setSelectedImageCategory(cat);
+                                                    if (cat === 'ALL') {
+                                                        handleSetSubOnlyImage(false);
+                                                    }
                                                 }
-                                            }
-                                        }}
-                                        style={{
-                                            padding: '2px 8px',
-                                            fontSize: '9px',
-                                            borderRadius: '3px',
-                                            border: '1px solid',
-                                            cursor: 'pointer',
-                                            whiteSpace: 'nowrap',
-                                            fontWeight: isSelected || isSub ? 'bold' : 'normal',
-                                            background: isSelected 
-                                                ? (isSub ? 'rgba(255, 215, 0, 0.25)' : 'rgba(255, 16, 122, 0.2)') 
-                                                : (isSub ? 'rgba(255, 215, 0, 0.08)' : 'transparent'),
-                                            borderColor: isSelected 
-                                                ? (isSub ? '#ffd700' : '#ff107a') 
-                                                : (isSub ? 'rgba(255, 215, 0, 0.35)' : 'rgba(255, 255, 255, 0.1)'),
-                                            color: isSelected 
-                                                ? (isSub ? '#ffd700' : '#ff107a') 
-                                                : (isSub ? '#ffd700' : 'rgba(255, 255, 255, 0.5)'),
-                                            boxShadow: isSelected && isSub ? '0 0 8px rgba(255, 215, 0, 0.35)' : 'none'
-                                        }}
-                                    >
-                                        {isSub ? `💎 SUB (${subImageCount})` : cat.toUpperCase()}
-                                    </button>
-                                );
-                            })}
+                                            }}
+                                            style={{
+                                                padding: '3px 8px',
+                                                fontSize: '9px',
+                                                borderRadius: '3px',
+                                                border: '1px solid',
+                                                cursor: 'pointer',
+                                                whiteSpace: 'nowrap',
+                                                flexShrink: 0,
+                                                fontWeight: isSelected || isSub ? 'bold' : 'normal',
+                                                background: isSelected 
+                                                    ? (isSub ? 'rgba(255, 215, 0, 0.25)' : 'rgba(255, 16, 122, 0.2)') 
+                                                    : (isSub ? 'rgba(255, 215, 0, 0.08)' : 'transparent'),
+                                                borderColor: isSelected 
+                                                    ? (isSub ? '#ffd700' : '#ff107a') 
+                                                    : (isSub ? 'rgba(255, 215, 0, 0.35)' : 'rgba(255, 255, 255, 0.15)'),
+                                                color: isSelected 
+                                                    ? (isSub ? '#ffd700' : '#ff107a') 
+                                                    : (isSub ? '#ffd700' : 'rgba(255, 255, 255, 0.5)'),
+                                                boxShadow: isSelected && isSub ? '0 0 8px rgba(255, 215, 0, 0.35)' : 'none'
+                                            }}
+                                        >
+                                            {isSub ? `💎 SUB (${subImageCount})` : cat.toUpperCase()}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => scrollImagePills(1)}
+                                style={{
+                                    width: '22px',
+                                    height: '24px',
+                                    padding: '0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    background: 'rgba(255, 16, 122, 0.1)',
+                                    border: '1px solid rgba(255, 16, 122, 0.4)',
+                                    borderRadius: '3px',
+                                    color: '#ff107a',
+                                    cursor: 'pointer',
+                                    fontSize: '9px',
+                                    fontWeight: 900,
+                                    flexShrink: 0,
+                                    transition: 'all 0.15s ease'
+                                }}
+                                title="Scroll categories right"
+                                aria-label="Scroll right"
+                            >
+                                ▶
+                            </button>
                         </div>
                     </div>
 

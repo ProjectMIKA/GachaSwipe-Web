@@ -466,20 +466,21 @@ export async function fetchAvailableModels(apiKey, targetProvider) {
     // --- NanoGPT Models ---
     let raw = apiKey || await getApiKey();
     const key = cleanApiKey(raw);
-    const headers = { "Content-Type": "application/json" };
-    if (key) {
-        headers["Authorization"] = "Bearer " + key;
-        headers["x-api-key"] = key;
-    }
+    const customEndpoint = await getSetting("custom_nanogpt_endpoint", "");
+    const baseEndpoint = (customEndpoint && customEndpoint.trim()) ? customEndpoint.trim() : "https://nano-gpt.com";
+    const modelsUrl = baseEndpoint.endsWith("/models") ? baseEndpoint : `${baseEndpoint.replace(/\/+$/, "")}/api/v1/models`;
 
     try {
+        // Query the full platform catalog unauthenticated so NanoGPT does not restrict
+        // the returned models list to only subscription models (x-nanogpt-models-authenticated).
         const [modelsRes, subRes] = await Promise.allSettled([
-            fetch("https://nano-gpt.com/api/v1/models", { method: "GET", headers }).then(async r => {
+            fetch(modelsUrl, { method: "GET" }).then(async r => {
                 if (r.ok) {
                     const data = await r.json();
                     return data?.data || data?.models || (Array.isArray(data) ? data : []);
                 }
-                const r2 = await fetch("https://nano-gpt.com/api/models", { headers });
+                const fallbackUrl = `${baseEndpoint.replace(/\/+$/, "")}/api/models`;
+                const r2 = await fetch(fallbackUrl);
                 if (r2.ok) {
                     const data2 = await r2.json();
                     return data2?.data || data2?.models || (Array.isArray(data2) ? data2 : []);
@@ -762,13 +763,13 @@ export async function fetchAvailableImageModels(apiKey) {
 
     try {
         const [imagesRes, subImagesRes] = await Promise.allSettled([
-            fetch("https://nano-gpt.com/api/v1/images/models", { method: "GET", headers }).then(async r => {
+            fetch("https://nano-gpt.com/api/v1/images/models", { method: "GET" }).then(async r => {
                 if (r.ok) {
                     const data = await r.json();
                     const list = data?.data || data?.models || (Array.isArray(data) ? data : null);
                     if (Array.isArray(list) && list.length > 0) return list;
                 }
-                const r2 = await fetch("https://nano-gpt.com/api/v1/image-models", { method: "GET", headers });
+                const r2 = await fetch("https://nano-gpt.com/api/v1/image-models", { method: "GET" });
                 if (r2.ok) {
                     const data2 = await r2.json();
                     const list2 = data2?.data || data2?.models || (Array.isArray(data2) ? data2 : null);
