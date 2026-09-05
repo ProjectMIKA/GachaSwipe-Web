@@ -6,7 +6,7 @@ export const WelcomeModal = ({ forceOpen = false, onClose }) => {
     const hasSeenOnboarding = useSetting('hasSeenOnboarding', null);
     const nanoGptKey = useSetting('byok_nanogpt_key', '');
     const openRouterKey = useSetting('byok_openrouter_key', '');
-    const activeProvider = useSetting('ai_provider', 'nanogpt');
+    const activeProvider = useSetting('activeProvider', 'nanogpt');
     
     const [isOpen, setIsOpen] = useState(false);
     const [dontShowAgain, setDontShowAgain] = useState(true);
@@ -53,7 +53,7 @@ export const WelcomeModal = ({ forceOpen = false, onClose }) => {
 
     const handleConnectLocal = async () => {
         try {
-            await setSetting('ai_provider', 'custom');
+            await setSetting('activeProvider', 'custom');
             if (window.__GACHA_HUD__?.openHUD) {
                 window.__GACHA_HUD__.openHUD('api');
             } else {

@@ -508,10 +508,19 @@ export async function fetchAvailableModels(apiKey, targetProvider) {
         const subList = subRes.status === "fulfilled" && Array.isArray(subRes.value) ? subRes.value : FALLBACK_NANOGPT_SUBSCRIPTION_MODELS;
         const subIdSet = new Set(subList.map(m => m.id));
 
-        const enriched = baseList.map(m => ({
-            ...m,
-            subscription: subIdSet.has(m.id)
-        }));
+        const enriched = baseList.map(m => {
+            let chatPricing = typeof m.pricing === "string" ? m.pricing : undefined;
+            if (m.pricing && typeof m.pricing === "object") {
+                if (m.pricing.prompt) {
+                    chatPricing = `$${(Number(m.pricing.prompt) * 1000000).toFixed(2)}/M`;
+                }
+            }
+            return {
+                ...m,
+                pricing: chatPricing,
+                subscription: subIdSet.has(m.id)
+            };
+        });
 
         const enrichedIds = new Set(enriched.map(m => m.id));
         for (const sub of subList) {
@@ -603,6 +612,53 @@ export const NANOGPT_SUBSCRIPTION_IMAGE_MODELS = [
 ];
 
 /**
+ * Normalizes and formats image model pricing into a safe, human-readable string (e.g. "$0.005/img").
+ * Handles arbitrary NanoGPT pricing structures (asterisk keys, resolution maps, numbers, strings).
+ */
+export function formatImagePrice(pricing) {
+    if (!pricing) return "$0.010/img";
+    if (typeof pricing === "string") {
+        if (pricing.startsWith("$")) return pricing;
+        const num = parseFloat(pricing);
+        return !isNaN(num) ? `$${num.toFixed(3)}/img` : pricing;
+    }
+    if (typeof pricing === "number") {
+        return `$${pricing.toFixed(3)}/img`;
+    }
+    if (typeof pricing === "object") {
+        const perImg = pricing.per_image;
+        if (typeof perImg === "number") {
+            return `$${perImg.toFixed(3)}/img`;
+        }
+        if (typeof perImg === "string") {
+            const num = parseFloat(perImg);
+            return !isNaN(num) ? `$${num.toFixed(3)}/img` : perImg;
+        }
+        if (perImg && typeof perImg === "object") {
+            const preferredKeys = [
+                "1024x1024", "1024*1024", "square", "square_hd", "auto", "default",
+                "portrait_16_9", "landscape_16_9", "1:1", "1k", "standard", "1080p", "720p"
+            ];
+            for (const k of preferredKeys) {
+                if (perImg[k] !== undefined && perImg[k] !== null) {
+                    const num = Number(perImg[k]);
+                    if (!isNaN(num)) return `$${num.toFixed(3)}/img`;
+                }
+            }
+            const values = Object.values(perImg);
+            for (const val of values) {
+                const num = Number(val);
+                if (!isNaN(num)) return `$${num.toFixed(3)}/img`;
+            }
+        }
+        if (pricing.price !== undefined && !isNaN(Number(pricing.price))) {
+            return `$${Number(pricing.price).toFixed(3)}/img`;
+        }
+    }
+    return "$0.010/img";
+}
+
+/**
  * Live query specifically for NanoGPT subscription image models.
  */
 export async function fetchSubscriptionImageModels(apiKey) {
@@ -623,28 +679,26 @@ export async function fetchSubscriptionImageModels(apiKey) {
             const data = await res.json();
             const list = data?.data || data?.models || (Array.isArray(data) ? data : null);
             if (Array.isArray(list) && list.length > 0) {
-                return list.map(m => {
-                    const price = m.pricing?.per_image?.["1024x1024"]
-                        || m.pricing?.per_image?.auto
-                        || m.pricing?.per_image?.portrait_16_9;
-                    const pricingStr = price ? `$${Number(price).toFixed(3)}/img` : undefined;
-                    return {
-                        id: m.id,
-                        name: m.name || m.id,
-                        owned_by: m.owned_by || "other",
-                        category: "subscription",
-                        desc: m.description || "",
-                        pricing: pricingStr || "$0.003/img",
-                        subscription: true,
-                        capabilities: m.capabilities || { image_generation: true }
-                    };
-                });
+                return list.map(m => ({
+                    id: m.id,
+                    name: m.name || m.id,
+                    owned_by: m.owned_by || "other",
+                    category: "subscription",
+                    desc: m.description || "",
+                    pricing: formatImagePrice(m.pricing),
+                    subscription: true,
+                    capabilities: m.capabilities || { image_generation: true }
+                }));
             }
         }
     } catch (err) {
         console.warn("🐾 [M.I.K.A API] NanoGPT live subscription image models query fallback:", err.message);
     }
-    return NANOGPT_SUBSCRIPTION_IMAGE_MODELS;
+    return NANOGPT_SUBSCRIPTION_IMAGE_MODELS.map(m => ({
+        ...m,
+        pricing: formatImagePrice(m.pricing),
+        subscription: true
+    }));
 }
 
 /**
@@ -736,10 +790,7 @@ export async function fetchAvailableImageModels(apiKey) {
         const subIdSet = new Set(subList.map(m => m.id));
 
         const mapped = rawList.map(m => {
-            const price = m.pricing?.per_image?.["1024x1024"]
-                || m.pricing?.per_image?.auto
-                || m.pricing?.per_image?.portrait_16_9;
-            const pricingStr = price ? `$${Number(price).toFixed(3)}/img` : undefined;
+            const pricingStr = formatImagePrice(m.pricing);
 
             let category = m.category || "other";
             const lowId = (m.id || "").toLowerCase();
@@ -759,20 +810,30 @@ export async function fetchAvailableImageModels(apiKey) {
                 owned_by: m.owned_by || "other",
                 category,
                 desc: m.description || m.desc || "",
-                pricing: pricingStr || m.pricing || "$0.010/img",
+                pricing: pricingStr,
                 subscription: isSub,
                 capabilities: m.capabilities || { image_generation: true }
             };
         });
 
-        // Ensure all subscription models exist in the mapped list
+        // Ensure all subscription models exist in the mapped list and are flagged correctly
         const existingIds = new Set(mapped.map(m => m.id));
         for (const sub of subList) {
             if (!existingIds.has(sub.id)) {
                 mapped.unshift({
                     ...sub,
+                    pricing: formatImagePrice(sub.pricing),
+                    category: "subscription",
                     subscription: true
                 });
+            } else {
+                const target = mapped.find(m => m.id === sub.id);
+                if (target) {
+                    target.subscription = true;
+                    target.category = "subscription";
+                    if (sub.desc && !target.desc) target.desc = sub.desc;
+                    if (sub.name && (!target.name || target.name === target.id)) target.name = sub.name;
+                }
             }
         }
 

@@ -372,8 +372,9 @@ export function useCardCount() {
 }
 
 export function useSetting(key, defaultValue = null) {
-    return useLiveQuery(async () => {
+    const val = useLiveQuery(async () => {
         const record = await db.settings.get(key);
         return record ? record.value : defaultValue;
     }, [key]);
+    return val !== undefined ? val : defaultValue;
 }
