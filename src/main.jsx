@@ -17,6 +17,15 @@ window.installLaylaMock = ({ debug } = {}) => {
 // Dispatch readiness event for any listeners waiting on the SDK
 window.dispatchEvent(new Event('layla-sdk-ready'));
 
+// Register PWA Service Worker
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('[M.I.K.A SW] Registration note:', err);
+    });
+  });
+}
+
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);

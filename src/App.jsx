@@ -20,6 +20,7 @@ import { WardrobeCategoryAccordion } from './components/WardrobeCategoryAccordio
 import { ForgeCategoryAccordion } from './components/ForgeCategoryAccordion.jsx';
 import { MatrixShooter } from './components/MatrixShooter.jsx';
 import { HolographicMessage, CyberAudioNote, formatMessageText } from './components/RoleplayRenderer.jsx';
+import { PwaInstallModal } from './components/PwaInstallModal.jsx';
 
 const JrpgSpeechBubble = ({ text, pColor, isBattleActive, formatMessageText, isLeft, isRight, isCenter, isHidden }) => (
     <div style={{ position: 'absolute', bottom: isBattleActive ? 'calc(100% + 20px)' : 'calc(100% + 10px)', [isLeft ? 'left' : (isRight ? 'right' : 'left')]: '50%', transform: `translateX(${isLeft ? '0' : (isRight ? '0' : '-50%')}) scale(${isHidden ? 0.8 : 1})`, width: 'max-content', maxWidth: '240px', zIndex: 120, opacity: isHidden ? 0.3 : 1, filter: isHidden ? 'blur(4px)' : 'none', transition: 'all 0.5s ease' }}>
@@ -1030,6 +1031,53 @@ Output strictly inside these XML tags:
 
     // ✨ MIKA'S SLIDE-DOWN NOTIFICATION ENGINE ✨
     const [incomingMsgAlert, setIncomingMsgAlert] = useState(null);
+
+    // ✨ MIKA'S PWA WEB APP INSTALL CONTROLLER ✨
+    const [deferredPrompt, setDeferredPrompt] = useState(null);
+    const [isPwaModalOpen, setIsPwaModalOpen] = useState(false);
+    const [isStandalone, setIsStandalone] = useState(false);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const checkStandalone = () => {
+            const isStand = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+            setIsStandalone(isStand);
+            return isStand;
+        };
+
+        const isCurrentlyStandalone = checkStandalone();
+
+        const handleBeforeInstallPrompt = (e) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+        };
+
+        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+        // Check if initial install popup should be triggered
+        const hasDismissed = localStorage.getItem('gs_pwa_dismissed') === 'true';
+        let timer = null;
+        if (!isCurrentlyStandalone && !hasDismissed) {
+            timer = setTimeout(() => {
+                setIsPwaModalOpen(true);
+            }, 2500);
+        }
+
+        return () => {
+            if (timer) clearTimeout(timer);
+            window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        };
+    }, []);
+
+    const handlePwaModalClose = (markDismissed = false) => {
+        setIsPwaModalOpen(false);
+        if (markDismissed) {
+            try {
+                localStorage.setItem('gs_pwa_dismissed', 'true');
+            } catch (e) { }
+        }
+    };
 
     const showIncomingAlert = (waifu, text) => {
         if (activeChatId === waifu.id && isBuddyOpen) return; // Hide if we're already looking at them!
@@ -13149,6 +13197,31 @@ Output ONLY the ad text. No questions, no roleplay, no preamble.`;
                     {/* 🌟 GROUP: SYSTEM & ENGINE 🌟 */}
                     <div style={{ fontSize: '11px', fontWeight: '800', color: '#00E5FF', marginTop: '24px', marginBottom: '8px', letterSpacing: '0.15em', textTransform: 'uppercase', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", textShadow: '0 0 8px rgba(0,229,255,0.3)', borderBottom: '1px solid rgba(0,229,255,0.15)', paddingBottom: '8px' }}>&gt; SYSTEM & ENGINE</div>
 
+                    {/* ✨ MIKA'S PWA WEB APP INSTALL PROTOCOL ✨ */}
+                    <div className="list-item" style={{ border: isStandalone ? '1px solid rgba(0, 255, 65, 0.4)' : '1px solid rgba(0, 229, 255, 0.25)', background: isStandalone ? 'rgba(0, 255, 65, 0.03)' : 'rgba(0, 229, 255, 0.04)', borderRadius: '6px' }}>
+                        <div>
+                            <div style={{ fontWeight: 'bold', color: isStandalone ? '#00FF41' : '#00E5FF', transition: 'color 0.2s', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace" }}>
+                                {isStandalone ? '> WEB_APP_INSTALLED' : '> INSTALL_WEB_APP'}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", letterSpacing: '0.05em' }}>
+                                {isStandalone ? '// Running in dedicated full-screen matrix mode.' : '// Add GachaSwipe to your home screen for full-screen matrix immersion.'}
+                            </div>
+                        </div>
+                        {isStandalone ? (
+                            <div style={{ padding: '6px 12px', borderRadius: '4px', border: '1px solid rgba(0, 255, 65, 0.4)', color: '#00FF41', fontSize: '10px', fontWeight: 'bold', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", background: 'rgba(0, 255, 65, 0.08)' }}>
+                                [ ACTIVE ]
+                            </div>
+                        ) : (
+                            <button
+                                className="btn btn-outline"
+                                style={{ padding: '8px 14px', borderRadius: '4px', border: '1px solid #00E5FF', color: '#00E5FF', fontSize: '11px', fontWeight: 'bold', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", background: 'rgba(0, 229, 255, 0.1)', cursor: 'pointer', boxShadow: '0 0 10px rgba(0,229,255,0.2)' }}
+                                onClick={() => setIsPwaModalOpen(true)}
+                            >
+                                &gt; INSTALL
+                            </button>
+                        )}
+                    </div>
+
                     <div className="list-item" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
                         <div style={{ fontWeight: 'bold', marginBottom: '12px', color: '#00E5FF', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace" }}>&gt; STARTUP_SCREEN</div>
                         <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
@@ -24876,6 +24949,17 @@ ${degenMode && matrixConfig.type !== 'sprite' ? "5. DEGENERATE OVERRIDE: Inject 
                     </div>
                 </div>
             )}
+
+            {/* ✨ MIKA'S PWA INSTALL MODAL ✨ */}
+            <PwaInstallModal
+                isOpen={isPwaModalOpen}
+                onClose={handlePwaModalClose}
+                deferredPrompt={deferredPrompt}
+                onInstalled={() => {
+                    setIsStandalone(true);
+                    showToast("GachaSwipe installed successfully! 📱✨");
+                }}
+            />
         </React.Fragment>
     );
 }

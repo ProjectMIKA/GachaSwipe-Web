@@ -1,0 +1,26 @@
+{
+  "name": "GachaSwipe",
+  "short_name": "GachaSwipe",
+  "description": "Roll for your next obsession - Cyberpunk AI companion dating simulator powered by M.I.K.A. Engine.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050308",
+  "theme_color": "#00E5FF",
+  "orientation": "portrait",
+  "categories": ["entertainment", "games", "social"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
