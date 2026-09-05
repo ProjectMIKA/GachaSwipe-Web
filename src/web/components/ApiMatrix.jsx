@@ -318,26 +318,24 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
 
     const handleSetSubOnlyChat = async (enabled) => {
         await setSetting('nanogpt_sub_only_chat', enabled);
-        if (enabled && selectedProviderFilter !== 'ALL' && selectedProviderFilter !== 'SUBSCRIPTION') {
-            setSelectedProviderFilter('ALL');
-        }
+        setSelectedProviderFilter(enabled ? 'SUBSCRIPTION' : 'ALL');
         showToast(enabled ? '💎 Filter active: Showing NanoGPT subscription chat models only.' : '🌐 Showing all chat models.');
     };
 
     const handleToggleSubOnlyChat = async () => {
-        await handleSetSubOnlyChat(!subOnlyChat);
+        const next = selectedProviderFilter === 'SUBSCRIPTION' || subOnlyChat;
+        await handleSetSubOnlyChat(!next);
     };
 
     const handleSetSubOnlyImage = async (enabled) => {
         await setSetting('nanogpt_sub_only_image', enabled);
-        if (enabled && selectedImageCategory !== 'ALL' && selectedImageCategory !== 'subscription') {
-            setSelectedImageCategory('ALL');
-        }
+        setSelectedImageCategory(enabled ? 'subscription' : 'ALL');
         showToast(enabled ? '💎 Filter active: Showing NanoGPT subscription image models only.' : '🎨 Showing all image models.');
     };
 
     const handleToggleSubOnlyImage = async () => {
-        await handleSetSubOnlyImage(!subOnlyImage);
+        const next = selectedImageCategory === 'subscription' || subOnlyImage;
+        await handleSetSubOnlyImage(!next);
     };
 
     const subChatCount = useMemo(() => models.filter(m => m.subscription).length, [models]);
@@ -359,8 +357,12 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
 
     const filteredModels = useMemo(() => {
         return models.filter(m => {
+            // Subscription isolation active ONLY when specifically requested, never in 'ALL'
             if (activeProvider === 'nanogpt') {
-                if ((subOnlyChat || selectedProviderFilter === 'SUBSCRIPTION') && !m.subscription) {
+                if (selectedProviderFilter === 'SUBSCRIPTION' && !m.subscription) {
+                    return false;
+                }
+                if (subOnlyChat && selectedProviderFilter !== 'ALL' && !m.subscription) {
                     return false;
                 }
             }
@@ -380,14 +382,33 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
     // --- Filtering Logic for Image Models ---
     const filteredImageModels = useMemo(() => {
         return imageModels.filter(m => {
-            if ((subOnlyImage || selectedImageCategory === 'subscription') && !m.subscription) {
+            // Subscription isolation active ONLY when specifically requested, never in 'ALL'
+            if (selectedImageCategory === 'subscription' && !m.subscription) {
+                return false;
+            }
+            if (subOnlyImage && selectedImageCategory !== 'ALL' && !m.subscription) {
                 return false;
             }
             const q = imageModelSearch.toLowerCase();
-            const matchesQuery = m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q) || (m.desc && m.desc.toLowerCase().includes(q));
+            const id = (m.id || '').toLowerCase();
+            const name = (m.name || '').toLowerCase();
+            const desc = (m.desc || '').toLowerCase();
+            const matchesQuery = id.includes(q) || name.includes(q) || desc.includes(q);
             if (!matchesQuery) return false;
+
             if (selectedImageCategory === 'ALL' || selectedImageCategory === 'subscription') return true;
-            return m.category === selectedImageCategory;
+
+            const cat = (m.category || '').toLowerCase();
+            const owner = (m.owned_by || '').toLowerCase();
+            const sel = selectedImageCategory.toLowerCase();
+
+            if (sel === 'flux') return id.includes('flux') || name.includes('flux') || cat === 'flux';
+            if (sel === 'anime') return id.includes('anime') || id.includes('illustrious') || id.includes('waifu') || id.includes('persona') || cat === 'anime';
+            if (sel === 'civitai') return id.includes('civitai') || id.includes('zuki') || id.includes('artiwaifu') || cat === 'civitai';
+            if (sel === 'openai') return id.includes('dall') || id.includes('gpt') || owner.includes('openai') || cat === 'openai';
+            if (sel === 'stability') return id.includes('sd') || id.includes('real') || id.includes('stable-diffusion') || owner.includes('stability') || cat === 'realistic';
+
+            return cat === sel;
         });
     }, [imageModels, imageModelSearch, selectedImageCategory, subOnlyImage]);
 
@@ -1009,56 +1030,59 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                             <div style={{ color: '#00ff9d', fontSize: '11px', fontWeight: 'bold' }}>
                                 &gt; LIVE_CHAT_MODELS ({filteredModels.length} of {models.length})
                             </div>
-                            {activeProvider === 'nanogpt' && (
-                                <div style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    background: 'rgba(5, 3, 8, 0.8)',
-                                    border: '1px solid rgba(255, 215, 0, 0.3)',
-                                    borderRadius: '4px',
-                                    padding: '2px',
-                                    gap: '2px'
-                                }}>
-                                    <button
-                                        onClick={() => handleSetSubOnlyChat(false)}
-                                        style={{
-                                            padding: '2px 8px',
-                                            fontSize: '8.5px',
-                                            fontWeight: !subOnlyChat ? 800 : 500,
-                                            borderRadius: '3px',
-                                            cursor: 'pointer',
-                                            border: 'none',
-                                            background: !subOnlyChat ? 'rgba(0, 255, 157, 0.2)' : 'transparent',
-                                            color: !subOnlyChat ? '#00ff9d' : 'rgba(255, 255, 255, 0.5)',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        title="Show all NanoGPT models"
-                                    >
-                                        ALL ({models.length})
-                                    </button>
-                                    <button
-                                        onClick={() => handleSetSubOnlyChat(true)}
-                                        style={{
-                                            padding: '2px 8px',
-                                            fontSize: '8.5px',
-                                            fontWeight: 800,
-                                            borderRadius: '3px',
-                                            cursor: 'pointer',
-                                            border: 'none',
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '4px',
-                                            background: subOnlyChat ? 'rgba(255, 215, 0, 0.25)' : 'transparent',
-                                            color: subOnlyChat ? '#ffd700' : 'rgba(255, 215, 0, 0.65)',
-                                            boxShadow: subOnlyChat ? '0 0 10px rgba(255, 215, 0, 0.35)' : 'none',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        title="Filter to only models included in the NanoGPT Subscription Plan"
-                                    >
-                                        <span>💎 SUB ONLY ({subChatCount})</span>
-                                    </button>
-                                </div>
-                            )}
+                            {activeProvider === 'nanogpt' && (() => {
+                                const isSubActive = selectedProviderFilter === 'SUBSCRIPTION' || (subOnlyChat && selectedProviderFilter !== 'ALL');
+                                return (
+                                    <div style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        background: 'rgba(5, 3, 8, 0.8)',
+                                        border: '1px solid rgba(255, 215, 0, 0.3)',
+                                        borderRadius: '4px',
+                                        padding: '2px',
+                                        gap: '2px'
+                                    }}>
+                                        <button
+                                            onClick={() => handleSetSubOnlyChat(false)}
+                                            style={{
+                                                padding: '2px 8px',
+                                                fontSize: '8.5px',
+                                                fontWeight: !isSubActive ? 800 : 500,
+                                                borderRadius: '3px',
+                                                cursor: 'pointer',
+                                                border: 'none',
+                                                background: !isSubActive ? 'rgba(0, 255, 157, 0.2)' : 'transparent',
+                                                color: !isSubActive ? '#00ff9d' : 'rgba(255, 255, 255, 0.5)',
+                                                transition: 'all 0.15s ease'
+                                            }}
+                                            title="Show all NanoGPT models"
+                                        >
+                                            ALL ({models.length})
+                                        </button>
+                                        <button
+                                            onClick={() => handleSetSubOnlyChat(true)}
+                                            style={{
+                                                padding: '2px 8px',
+                                                fontSize: '8.5px',
+                                                fontWeight: isSubActive ? 800 : 500,
+                                                borderRadius: '3px',
+                                                cursor: 'pointer',
+                                                border: 'none',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                background: isSubActive ? 'rgba(255, 215, 0, 0.25)' : 'transparent',
+                                                color: isSubActive ? '#ffd700' : 'rgba(255, 215, 0, 0.65)',
+                                                boxShadow: isSubActive ? '0 0 10px rgba(255, 215, 0, 0.35)' : 'none',
+                                                transition: 'all 0.15s ease'
+                                            }}
+                                            title="Filter to only models included in the NanoGPT Subscription Plan"
+                                        >
+                                            <span>💎 SUB ONLY ({subChatCount})</span>
+                                        </button>
+                                    </div>
+                                );
+                            })()}
                         </div>
                         <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.5)' }}>
                             Active: <strong style={{ color: '#00e5ff' }}>{activeModel}</strong>
@@ -1132,9 +1156,13 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                                         <button
                                             key={org}
                                             onClick={() => {
-                                                setSelectedProviderFilter(org);
                                                 if (isSubPill) {
                                                     handleSetSubOnlyChat(true);
+                                                } else {
+                                                    setSelectedProviderFilter(org);
+                                                    if (org === 'ALL') {
+                                                        handleSetSubOnlyChat(false);
+                                                    }
                                                 }
                                             }}
                                             style={{
@@ -1269,54 +1297,59 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                             <div style={{ color: '#ff107a', fontSize: '11px', fontWeight: 'bold' }}>
                                 &gt; IMAGE_DIFFUSION_MODELS ({filteredImageModels.length} of {imageModels.length})
                             </div>
-                            <div style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                background: 'rgba(5, 3, 8, 0.8)',
-                                border: '1px solid rgba(255, 215, 0, 0.3)',
-                                borderRadius: '4px',
-                                padding: '2px',
-                                gap: '2px'
-                            }}>
-                                <button
-                                    onClick={() => handleSetSubOnlyImage(false)}
-                                    style={{
-                                        padding: '2px 8px',
-                                        fontSize: '8.5px',
-                                        fontWeight: !subOnlyImage ? 800 : 500,
-                                        borderRadius: '3px',
-                                        cursor: 'pointer',
-                                        border: 'none',
-                                        background: !subOnlyImage ? 'rgba(255, 16, 122, 0.2)' : 'transparent',
-                                        color: !subOnlyImage ? '#ff107a' : 'rgba(255, 255, 255, 0.5)',
-                                        transition: 'all 0.15s ease'
-                                    }}
-                                    title="Show all Image Models"
-                                >
-                                    ALL ({imageModels.length})
-                                </button>
-                                <button
-                                    onClick={() => handleSetSubOnlyImage(true)}
-                                    style={{
-                                        padding: '2px 8px',
-                                        fontSize: '8.5px',
-                                        fontWeight: 800,
-                                        borderRadius: '3px',
-                                        cursor: 'pointer',
-                                        border: 'none',
+                            {(() => {
+                                const isSubActive = selectedImageCategory === 'subscription' || (subOnlyImage && selectedImageCategory !== 'ALL');
+                                return (
+                                    <div style={{
                                         display: 'inline-flex',
                                         alignItems: 'center',
-                                        gap: '4px',
-                                        background: subOnlyImage ? 'rgba(255, 215, 0, 0.25)' : 'transparent',
-                                        color: subOnlyImage ? '#ffd700' : 'rgba(255, 215, 0, 0.65)',
-                                        boxShadow: subOnlyImage ? '0 0 10px rgba(255, 215, 0, 0.35)' : 'none',
-                                        transition: 'all 0.15s ease'
-                                    }}
-                                    title="Filter to only models included in the NanoGPT Subscription Plan"
-                                >
-                                    <span>💎 SUB ONLY ({subImageCount})</span>
-                                </button>
-                            </div>
+                                        background: 'rgba(5, 3, 8, 0.8)',
+                                        border: '1px solid rgba(255, 215, 0, 0.3)',
+                                        borderRadius: '4px',
+                                        padding: '2px',
+                                        gap: '2px'
+                                    }}>
+                                        <button
+                                            onClick={() => handleSetSubOnlyImage(false)}
+                                            style={{
+                                                padding: '2px 8px',
+                                                fontSize: '8.5px',
+                                                fontWeight: !isSubActive ? 800 : 500,
+                                                borderRadius: '3px',
+                                                cursor: 'pointer',
+                                                border: 'none',
+                                                background: !isSubActive ? 'rgba(255, 16, 122, 0.2)' : 'transparent',
+                                                color: !isSubActive ? '#ff107a' : 'rgba(255, 255, 255, 0.5)',
+                                                transition: 'all 0.15s ease'
+                                            }}
+                                            title="Show all Image Models"
+                                        >
+                                            ALL ({imageModels.length})
+                                        </button>
+                                        <button
+                                            onClick={() => handleSetSubOnlyImage(true)}
+                                            style={{
+                                                padding: '2px 8px',
+                                                fontSize: '8.5px',
+                                                fontWeight: isSubActive ? 800 : 500,
+                                                borderRadius: '3px',
+                                                cursor: 'pointer',
+                                                border: 'none',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                background: isSubActive ? 'rgba(255, 215, 0, 0.25)' : 'transparent',
+                                                color: isSubActive ? '#ffd700' : 'rgba(255, 215, 0, 0.65)',
+                                                boxShadow: isSubActive ? '0 0 10px rgba(255, 215, 0, 0.35)' : 'none',
+                                                transition: 'all 0.15s ease'
+                                            }}
+                                            title="Filter to only models included in the NanoGPT Subscription Plan"
+                                        >
+                                            <span>💎 SUB ONLY ({subImageCount})</span>
+                                        </button>
+                                    </div>
+                                );
+                            })()}
                         </div>
                         <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.5)' }}>
                             Active: <strong style={{ color: '#ff107a' }}>{activeImageModel}</strong>
@@ -1351,9 +1384,13 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                                     <button
                                         key={cat}
                                         onClick={() => {
-                                            setSelectedImageCategory(cat);
                                             if (isSub) {
                                                 handleSetSubOnlyImage(true);
+                                            } else {
+                                                setSelectedImageCategory(cat);
+                                                if (cat === 'ALL') {
+                                                    handleSetSubOnlyImage(false);
+                                                }
                                             }
                                         }}
                                         style={{
