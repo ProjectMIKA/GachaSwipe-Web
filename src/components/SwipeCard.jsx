@@ -215,9 +215,9 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             75% { object-position: var(--p2e); transform: scale(1.8); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
             
             85% { filter: blur(12px) brightness(1.6) saturate(1.1); opacity: 1; }
-            /* Arrives safely at face focus (50% 0%) so head is never cropped */
-            95% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
-            100% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
+            /* Arrives safely at horizontal pan start (0% 15%) so head and ears are preserved */
+            95% { object-position: 0% 15%; transform: scale(1.08) translateX(-3%); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
+            100% { object-position: 0% 15%; transform: scale(1.08) translateX(-3%); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
         }
 
         /* 2. Intense Push-In */
@@ -233,8 +233,8 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             75% { object-position: var(--p2e); transform: scale(2.8); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
             
             85% { filter: blur(12px) brightness(1.6) saturate(1.1); opacity: 1; }
-            95% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); opacity: 1; }
-            100% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); opacity: 1; }
+            95% { object-position: 0% 15%; transform: scale(1.08) translateX(-3%); filter: blur(0px) brightness(1.0); opacity: 1; }
+            100% { object-position: 0% 15%; transform: scale(1.08) translateX(-3%); filter: blur(0px) brightness(1.0); opacity: 1; }
         }
 
         /* 3. Chaos Bounce */
@@ -250,8 +250,8 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             75% { object-position: var(--p2e); transform: scale(2.2); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
             
             85% { filter: blur(12px) brightness(1.6) saturate(1.1); opacity: 1; }
-            95% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); opacity: 1; }
-            100% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); opacity: 1; }
+            95% { object-position: 0% 15%; transform: scale(1.08) translateX(-3%); filter: blur(0px) brightness(1.0); opacity: 1; }
+            100% { object-position: 0% 15%; transform: scale(1.08) translateX(-3%); filter: blur(0px) brightness(1.0); opacity: 1; }
         }
 
         /* 4. Steady Drift */
@@ -267,8 +267,8 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             75% { object-position: var(--p2e); transform: scale(2.2); filter: blur(0px) brightness(1.0) saturate(1.0); opacity: 1; }
             
             85% { filter: blur(12px) brightness(1.6) saturate(1.1); opacity: 1; }
-            95% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); opacity: 1; }
-            100% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); opacity: 1; }
+            95% { object-position: 0% 15%; transform: scale(1.08) translateX(-3%); filter: blur(0px) brightness(1.0); opacity: 1; }
+            100% { object-position: 0% 15%; transform: scale(1.08) translateX(-3%); filter: blur(0px) brightness(1.0); opacity: 1; }
         }
 
         /* ✨ NORMAL LENS EFFECTS (3.2s duration for a luxurious settle) ✨ */
@@ -279,9 +279,9 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             50% { object-position: var(--p1e); transform: scale(1.3); filter: blur(0px) brightness(1.0); } 
             
             75% { filter: blur(8px) brightness(1.2); } 
-            /* Arrives safely at face focus (50% 0%) and holds for timer */
-            95% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
-            100% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
+            /* Arrives safely at idle horizontal pan position and holds for timer */
+            95% { object-position: 0% 15%; transform: scale(1.08) translateX(-3%); filter: blur(0px) brightness(1.0); } 
+            100% { object-position: 0% 15%; transform: scale(1.08) translateX(-3%); filter: blur(0px) brightness(1.0); } 
         }
 
         @keyframes normLens_focus { 
@@ -291,8 +291,8 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             50% { object-position: var(--p1e); transform: scale(1.5); filter: blur(0px) brightness(1.0); } 
             
             75% { filter: blur(8px) brightness(1.2); } 
-            95% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
-            100% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
+            95% { object-position: 0% 15%; transform: scale(1.08) translateX(-3%); filter: blur(0px) brightness(1.0); } 
+            100% { object-position: 0% 15%; transform: scale(1.08) translateX(-3%); filter: blur(0px) brightness(1.0); } 
         }
 
         @keyframes normLens_glide { 
@@ -302,32 +302,37 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
             50% { object-position: var(--p1e); transform: scale(1.3); filter: blur(0px) brightness(1.0); } 
             
             75% { filter: blur(8px) brightness(1.2); } 
-            95% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
-            100% { object-position: 50% 0%; transform: scale(1.0); filter: blur(0px) brightness(1.0); } 
+            95% { object-position: 0% 15%; transform: scale(1.08) translateX(-3%); filter: blur(0px) brightness(1.0); } 
+            100% { object-position: 0% 15%; transform: scale(1.08) translateX(-3%); filter: blur(0px) brightness(1.0); } 
         }
 
-        /* ✨ MIKA'S BEAUTIFUL CARD PANNING & SCROLLING ENGINE ✨ */
-        @keyframes waifuPortraitScroll {
-            0%, 14% {
-                object-position: 50% 0%;
+        /* ✨ MIKA'S SIGNATURE HORIZONTAL CARD PANNING ENGINE ✨ */
+        @keyframes subtlePan {
+            0% {
+                object-position: 0% 15%;
+                transform: scale(1.08) translateX(-3%);
             }
-            48%, 62% {
-                object-position: 50% 100%;
+            50% {
+                object-position: 100% 15%;
+                transform: scale(1.08) translateX(3%);
             }
-            94%, 100% {
-                object-position: 50% 0%;
+            100% {
+                object-position: 0% 15%;
+                transform: scale(1.08) translateX(-3%);
             }
         }
-
-        @keyframes waifuLandscapeScroll {
-            0%, 14% {
-                object-position: 0% 50%;
+        @keyframes waifuHorizontalPan {
+            0% {
+                object-position: 0% 15%;
+                transform: scale(1.08) translateX(-3%);
             }
-            48%, 62% {
-                object-position: 100% 50%;
+            50% {
+                object-position: 100% 15%;
+                transform: scale(1.08) translateX(3%);
             }
-            94%, 100% {
-                object-position: 0% 50%;
+            100% {
+                object-position: 0% 15%;
+                transform: scale(1.08) translateX(-3%);
             }
         }
                 `}</style>
@@ -443,7 +448,7 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
                             width: '100%', 
                             height: '100%', 
                             objectFit: 'cover', 
-                            objectPosition: imgOrientation === 'landscape' ? '0% 50%' : '50% 0%',
+                            objectPosition: waifu.id === 'intro' ? '50% 50%' : '0% 15%',
                             /* MIKA'S DYNAMIC CAMERA VARIABLES */
                             '--p1s': cameraSettings.p1s, '--p1e': cameraSettings.p1e,
                             '--p2s': cameraSettings.p2s, '--p2e': cameraSettings.p2e,
@@ -457,10 +462,8 @@ export const SwipeCard = ({ waifu, preferences, style, interactive, likeOpacity,
                                 ? `${cameraSettings.anim} 5.2s ease-out forwards` 
                                 : (!waifu.isSSR && revealPhase === 'intro_pan') 
                                 ? `${cameraSettings.anim} 3.2s ease-out forwards` 
-                                : imgOrientation === 'landscape'
-                                ? 'waifuLandscapeScroll 22s ease-in-out infinite'
-                                : 'waifuPortraitScroll 22s ease-in-out infinite', 
-                            transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), filter 0.5s ease'
+                                : 'subtlePan 28s ease-in-out infinite', 
+                            transition: 'filter 0.5s ease'
                         }} 
                     />
                 ) : (
