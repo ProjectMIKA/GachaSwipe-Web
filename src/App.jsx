@@ -370,6 +370,8 @@ function App() {
     const isBootingRef = useRef(true);
     const isAutoResumingRef = useRef(false);
     const isSavingRef = useRef(false);
+    const isGeneratingRef = useRef(false);
+    const queueRef = useRef([]);
 
     // Autopilot Protocols State (Now forced on permanently!)
     const autoResume = true;
@@ -1015,7 +1017,7 @@ Output strictly inside these XML tags:
         setAppState('theme-forge');
     };
     const [layla, setLayla] = useState(null);
-    const [appState, setAppState] = useState(typeof window !== 'undefined' && window.innerWidth > 1024 ? 'swipe' : 'splash');
+    const [appState, setAppState] = useState('swipe');
     const [roster, setRoster] = useState([]);
     const [charSearch, setCharSearch] = useState("");
     const [selectedChara, setSelectedChara] = useState(null);
@@ -2068,7 +2070,9 @@ Output strictly inside these XML tags:
     useEffect(() => {
         isBootingRef.current = isBooting;
         isAutoResumingRef.current = isAutoResuming;
-    }, [isBooting, isAutoResuming]);
+        queueRef.current = queue;
+        isGeneratingRef.current = isGenerating;
+    }, [isBooting, isAutoResuming, queue, isGenerating]);
 
 
 
@@ -3060,279 +3064,364 @@ Output strictly inside these XML tags:
         let hasFiredLures = false;
 
         try {
+            await initDatabase().catch(() => {});
+
+            // Safe tag parser to prevent non-string runtime crashes
+            const parseTagsSafe = (raw) => {
+                if (!raw) return ['phone', 'smartphone'];
+                const arr = Array.isArray(raw) ? raw : [raw];
+                const tags = [];
+                for (const item of arr) {
+                    if (typeof item === 'string') {
+                        item.split(',').forEach(s => {
+                            const trimmed = s.trim().toLowerCase();
+                            if (trimmed) tags.push(trimmed);
+                        });
+                    } else if (item && typeof item === 'object' && item.tag) {
+                        tags.push(String(item.tag).trim().toLowerCase());
+                    } else if (item != null) {
+                        const str = String(item).trim().toLowerCase();
+                        if (str) tags.push(str);
+                    }
+                }
+                return tags.length > 0 ? [...new Set(tags)] : ['phone', 'smartphone'];
+            };
+
             // 1. Load App Index & Settings from SQLite
-            const indexRes = await layla.db.executeSql("SELECT val FROM app_state WHERE key = 'index_data'", []);
-            if (indexRes?.rows?.length > 0 && indexRes.rows[0].val) {
-                data = JSON.parse(indexRes.rows[0].val);
+            try {
+                const indexRes = await layla.db.executeSql("SELECT val FROM app_state WHERE key = 'index_data'", []);
+                if (indexRes?.rows?.length > 0) {
+                    const row = indexRes.rows.item ? indexRes.rows.item(0) : indexRes.rows[0];
+                    if (row && row.val) {
+                        try {
+                            data = typeof row.val === 'string' ? JSON.parse(row.val) : row.val;
+                        } catch (e) {
+                            console.warn("[M.I.K.A SQL] Failed to parse index_data:", e);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("[M.I.K.A SQL] Index table query error:", err);
             }
 
             let loadedChara = false;
-            if (data) {
-                setPreferences(data.preferences || {});
-                setSwipes(data.swipes || 0);
-                if (data.selectedContext) setSelectedContext(data.selectedContext);
-                if (data.customTags) setCustomTags(data.customTags);
-                if (data.selectedThemeId) setSelectedThemeId(data.selectedThemeId);
-                if (data.degenMode !== undefined) setDegenMode(data.degenMode);
-                if (data.explicitMode !== undefined) {
-                    if (data.explicitMode === true) setExplicitMode(3);
-                    else if (data.explicitMode === false) setExplicitMode(0);
-                    else setExplicitMode(data.explicitMode);
-                }
-                if (data.enableImageCensor !== undefined) setEnableImageCensor(data.enableImageCensor);
-                if (data.useLocalDreamPrefix !== undefined) setUseLocalDreamPrefix(data.useLocalDreamPrefix);
-                if (data.enableSystemDirectives !== undefined) setEnableSystemDirectives(data.enableSystemDirectives);
-                if (data.systemDirectives) setSystemDirectives(data.systemDirectives);
-                if (data.allowHybrids !== undefined) setAllowHybrids(data.allowHybrids);
-                if (data.allowThemeMixing !== undefined) setAllowThemeMixing(data.allowThemeMixing);
-                if (data.autoQueue !== undefined) setAutoQueue(data.autoQueue);
-                if (data.testDriveMode !== undefined) setTestDriveMode(data.testDriveMode);
-                if (data.detailedProfiles !== undefined) setDetailedProfiles(data.detailedProfiles);
-                if (data.diverseNames !== undefined) setDiverseNames(data.diverseNames);
-                if (data.isKnownCharacter !== undefined) setIsKnownCharacter(data.isKnownCharacter);
-                if (data.proactiveOffline !== undefined) setProactiveOffline(data.proactiveOffline);
-                if (data.proactiveIdle !== undefined) setProactiveIdle(data.proactiveIdle);
-                if (data.proactiveFavoritesOnly !== undefined) setProactiveFavoritesOnly(data.proactiveFavoritesOnly);
-                if (data.enableBeatEngine !== undefined) setEnableBeatEngine(data.enableBeatEngine);
-                if (data.useNativeAudioPlayer !== undefined) setUseNativeAudioPlayer(data.useNativeAudioPlayer);
-                if (data.dawProfanity !== undefined) setDawProfanity(data.dawProfanity);
-                if (data.dawTopic !== undefined) setDawTopic(Array.isArray(data.dawTopic) ? data.dawTopic : [data.dawTopic]);
+            if (data && typeof data === 'object') {
+                try {
+                    setPreferences(data.preferences || {});
+                    setSwipes(data.swipes || 0);
+                    if (data.selectedContext) setSelectedContext(data.selectedContext);
+                    if (data.customTags) setCustomTags(data.customTags);
+                    if (data.selectedThemeId) setSelectedThemeId(data.selectedThemeId);
+                    if (data.degenMode !== undefined) setDegenMode(data.degenMode);
+                    if (data.explicitMode !== undefined) {
+                        if (data.explicitMode === true) setExplicitMode(3);
+                        else if (data.explicitMode === false) setExplicitMode(0);
+                        else setExplicitMode(data.explicitMode);
+                    }
+                    if (data.enableImageCensor !== undefined) setEnableImageCensor(data.enableImageCensor);
+                    if (data.useLocalDreamPrefix !== undefined) setUseLocalDreamPrefix(data.useLocalDreamPrefix);
+                    if (data.enableSystemDirectives !== undefined) setEnableSystemDirectives(data.enableSystemDirectives);
+                    if (data.systemDirectives) setSystemDirectives(data.systemDirectives);
+                    if (data.allowHybrids !== undefined) setAllowHybrids(data.allowHybrids);
+                    if (data.allowThemeMixing !== undefined) setAllowThemeMixing(data.allowThemeMixing);
+                    if (data.autoQueue !== undefined) setAutoQueue(data.autoQueue);
+                    if (data.testDriveMode !== undefined) setTestDriveMode(data.testDriveMode);
+                    if (data.detailedProfiles !== undefined) setDetailedProfiles(data.detailedProfiles);
+                    if (data.diverseNames !== undefined) setDiverseNames(data.diverseNames);
+                    if (data.isKnownCharacter !== undefined) setIsKnownCharacter(data.isKnownCharacter);
+                    if (data.proactiveOffline !== undefined) setProactiveOffline(data.proactiveOffline);
+                    if (data.proactiveIdle !== undefined) setProactiveIdle(data.proactiveIdle);
+                    if (data.proactiveFavoritesOnly !== undefined) setProactiveFavoritesOnly(data.proactiveFavoritesOnly);
+                    if (data.enableBeatEngine !== undefined) setEnableBeatEngine(data.enableBeatEngine);
+                    if (data.useNativeAudioPlayer !== undefined) setUseNativeAudioPlayer(data.useNativeAudioPlayer);
+                    if (data.dawProfanity !== undefined) setDawProfanity(data.dawProfanity);
+                    if (data.dawTopic !== undefined) setDawTopic(Array.isArray(data.dawTopic) ? data.dawTopic : [data.dawTopic]);
 
-                // ✨ MIKA'S LEGACY PRESET BACKUP ✨
-                if (data.customPresets !== undefined) {
-                    setCustomPresets(data.customPresets);
-                } else if (data.swipes > 0 || data.explicitMode > 0 || data.hasSeenTutorial) {
-                    // If they are an existing user updating to this version, save their exact configuration!
-                    const legacyConfig = {
-                        explicitMode: data.explicitMode || 0, degenMode: data.degenMode || false, proactiveOffline: data.proactiveOffline || false, proactiveIdle: data.proactiveIdle || false, proactiveFavoritesOnly: data.proactiveFavoritesOnly !== false,
-                        syncSpeed: data.syncSpeed || 'gamified', msgThirst: data.msgThirst || 0.15, tokenPreset: data.tokenPreset || 'balanced', chatContextLimit: data.chatContextLimit || 50, groupChatContextLimit: data.groupChatContextLimit || 40,
-                        chatProfileDetail: data.chatProfileDetail || 'truncated', groupProfileDetail: data.groupProfileDetail || 'condensed', enableMeowEngine: data.enableMeowEngine !== false, enableSelfieAutonomy: data.enableSelfieAutonomy || false, enableProactiveSelfies: data.enableProactiveSelfies || false,
-                        chatStyleMode: data.chatStyleMode || 'sms', groupChatStyleMode: data.groupChatStyleMode || 'dynamic_sms', bannedTags: (Array.isArray(data.bannedTags) ? data.bannedTags.flatMap(b => typeof b === 'string' ? b.split(',') : [b]).map(b => b.trim().toLowerCase()).filter(Boolean) : ['phone', 'smartphone']), enableAtmosphere: data.enableAtmosphere || false, enableMp3Compression: data.enableMp3Compression || false, cinematicChatBg: data.cinematicChatBg || false, autoQueue: data.autoQueue || false,
-                        silhouetteMode: data.silhouetteMode || false, autoUpdateLaylaCards: data.autoUpdateLaylaCards || false, backgroundSpooling: data.backgroundSpooling !== false, groupChatFlow: data.groupChatFlow || 'hyper', groupChatPause: data.groupChatPause || false,
-                        enableTtsStandard: data.enableTtsStandard === true, enableTtsGroup: data.enableTtsGroup || false
-                    };
-                    setCustomPresets({ 'LEGACY_BACKUP': legacyConfig });
-                    if (data.activePresetId === undefined) setActivePresetId('LEGACY_BACKUP');
-                }
+                    // ✨ MIKA'S LEGACY PRESET BACKUP ✨
+                    if (data.customPresets !== undefined) {
+                        setCustomPresets(data.customPresets);
+                    } else if (data.swipes > 0 || data.explicitMode > 0 || data.hasSeenTutorial) {
+                        const legacyConfig = {
+                            explicitMode: data.explicitMode || 0, degenMode: data.degenMode || false, proactiveOffline: data.proactiveOffline || false, proactiveIdle: data.proactiveIdle || false, proactiveFavoritesOnly: data.proactiveFavoritesOnly !== false,
+                            syncSpeed: data.syncSpeed || 'gamified', msgThirst: data.msgThirst || 0.15, tokenPreset: data.tokenPreset || 'balanced', chatContextLimit: data.chatContextLimit || 50, groupChatContextLimit: data.groupChatContextLimit || 40,
+                            chatProfileDetail: data.chatProfileDetail || 'truncated', groupProfileDetail: data.groupProfileDetail || 'condensed', enableMeowEngine: data.enableMeowEngine !== false, enableSelfieAutonomy: data.enableSelfieAutonomy || false, enableProactiveSelfies: data.enableProactiveSelfies || false,
+                            chatStyleMode: data.chatStyleMode || 'sms', groupChatStyleMode: data.groupChatStyleMode || 'dynamic_sms', bannedTags: parseTagsSafe(data.bannedTags), enableAtmosphere: data.enableAtmosphere || false, enableMp3Compression: data.enableMp3Compression || false, cinematicChatBg: data.cinematicChatBg || false, autoQueue: false,
+                            silhouetteMode: data.silhouetteMode || false, autoUpdateLaylaCards: data.autoUpdateLaylaCards || false, backgroundSpooling: data.backgroundSpooling !== false, groupChatFlow: data.groupChatFlow || 'hyper', groupChatPause: data.groupChatPause || false,
+                            enableTtsStandard: data.enableTtsStandard === true, enableTtsGroup: data.enableTtsGroup || false
+                        };
+                        setCustomPresets({ 'LEGACY_BACKUP': legacyConfig });
+                        if (data.activePresetId === undefined) setActivePresetId('LEGACY_BACKUP');
+                    }
 
-                if (data.activePresetId !== undefined) setActivePresetId(data.activePresetId);
-                if (data.autoUpdateLaylaCards !== undefined) setAutoUpdateLaylaCards(data.autoUpdateLaylaCards);
-                if (data.syncSpeed !== undefined) setSyncSpeed(data.syncSpeed);
-                if (data.hasSeenDevPreset !== undefined) setHasSeenDevPreset(data.hasSeenDevPreset);
-                if (data.selectedKnownCharCategories !== undefined) setSelectedKnownCharCategories(data.selectedKnownCharCategories);
-                if (data.knownCharCustomCategories !== undefined) setKnownCharCustomCategories(data.knownCharCustomCategories);
-                if (data.startupScreen !== undefined) setStartupScreen(data.startupScreen);
-                if (data.gachaFansHubAd !== undefined) setGachaFansHubAd(data.gachaFansHubAd);
-                if (data.gachaFansHubAdDate !== undefined) setGachaFansHubAdDate(data.gachaFansHubAdDate);
-                if (data.gachaFansHubFeatured !== undefined) setGachaFansHubFeatured(data.gachaFansHubFeatured);
-                if (data.gachaFansHubFeaturedDate !== undefined) setGachaFansHubFeaturedDate(data.gachaFansHubFeaturedDate);
-                if (data.gachaFansDiscovery !== undefined) setGachaFansDiscovery(data.gachaFansDiscovery);
-                if (data.discoveryThemeFilter !== undefined) setDiscoveryThemeFilter(data.discoveryThemeFilter);
-                if (data.discoveryCacheSize !== undefined) setDiscoveryCacheSize(data.discoveryCacheSize);
-                if (data.isSurpriseMode !== undefined) setIsSurpriseMode(data.isSurpriseMode);
-                if (data.silhouetteMode !== undefined) setSilhouetteMode(data.silhouetteMode);
-                if (data.enableTtsStandard !== undefined) setEnableTtsStandard(data.enableTtsStandard);
-                if (data.enableTtsGroup !== undefined) setEnableTtsGroup(data.enableTtsGroup);
-                if (data.ttsAutoPlay !== undefined) setTtsAutoPlay(data.ttsAutoPlay);
-                if (data.ttsCacheLimit !== undefined) setTtsCacheLimit(data.ttsCacheLimit);
-                if (data.ttsConfig !== undefined) setTtsConfig(data.ttsConfig);
-                if (data.ttsUseForge !== undefined) setTtsUseForge(data.ttsUseForge);
-                if (data.msgThirst !== undefined) setMsgThirst(data.msgThirst);
-                if (data.genderPrefs) setGenderPrefs(data.genderPrefs);
-                if (data.hasSeenLateNightWarning !== undefined) setHasSeenLateNightWarning(data.hasSeenLateNightWarning);
-                if (data.sparkTokens !== undefined) setSparkTokens(data.sparkTokens);
-                if (data.hasSeenHubAd !== undefined) setHasSeenHubAd(data.hasSeenHubAd);
-                if (data.hasSeenMeowAd !== undefined) setHasSeenMeowAd(data.hasSeenMeowAd);
-                if (data.hasSeenSysCtrlAd !== undefined) setHasSeenSysCtrlAd(data.hasSeenSysCtrlAd);
-                if (data.hasSeenCardSyncAd !== undefined) setHasSeenCardSyncAd(data.hasSeenCardSyncAd);
-                if (data.hasSeenV28Ad !== undefined) setHasSeenV28Ad(data.hasSeenV28Ad);
-                if (data.achievements !== undefined) setAchievements(data.achievements);
-                if (data.lastDailyCheckin !== undefined) setLastDailyCheckin(data.lastDailyCheckin);
-                if (data.hasSeenTutorial !== undefined) setHasSeenTutorial(data.hasSeenTutorial);
-                if (data.seenTutorialVersion !== undefined) setSeenTutorialVersion(data.seenTutorialVersion);
-                if (data.dismissedUpdateVersion !== undefined) setDismissedUpdateVersion(data.dismissedUpdateVersion);
-                if (data.hasCollectedFirstTutorialSpark !== undefined) setHasCollectedFirstTutorialSpark(data.hasCollectedFirstTutorialSpark);
-                if (data.collectedTutorialRewards !== undefined) setCollectedTutorialRewards(data.collectedTutorialRewards);
-                if (data.imagePrefix !== undefined) setImagePrefix(data.imagePrefix);
-                if (data.bannedTags !== undefined) {
-                    const loaded = Array.isArray(data.bannedTags)
-                        ? data.bannedTags.flatMap(b => typeof b === 'string' ? b.split(',') : [b]).map(b => b.trim().toLowerCase()).filter(Boolean)
-                        : ['phone', 'smartphone'];
-                    setBannedTags([...new Set(loaded)]);
-                }
-                if (data.bannedLyrics !== undefined) setBannedLyrics(data.bannedLyrics);
-                if (data.dawProfanity !== undefined) setDawProfanity(data.dawProfanity);
-                if (data.dawTopic !== undefined) setDawTopic(data.dawTopic);
-                if (data.pinnedChatBgs) setPinnedChatBgs(data.pinnedChatBgs);
-                if (data.minigameHighScore !== undefined) setMinigameHighScore(data.minigameHighScore);
+                    if (data.activePresetId !== undefined) setActivePresetId(data.activePresetId);
+                    if (data.autoUpdateLaylaCards !== undefined) setAutoUpdateLaylaCards(data.autoUpdateLaylaCards);
+                    if (data.syncSpeed !== undefined) setSyncSpeed(data.syncSpeed);
+                    if (data.hasSeenDevPreset !== undefined) setHasSeenDevPreset(data.hasSeenDevPreset);
+                    if (data.selectedKnownCharCategories !== undefined) setSelectedKnownCharCategories(data.selectedKnownCharCategories);
+                    if (data.knownCharCustomCategories !== undefined) setKnownCharCustomCategories(data.knownCharCustomCategories);
+                    if (data.startupScreen !== undefined) setStartupScreen(data.startupScreen);
+                    if (data.gachaFansHubAd !== undefined) setGachaFansHubAd(data.gachaFansHubAd);
+                    if (data.gachaFansHubAdDate !== undefined) setGachaFansHubAdDate(data.gachaFansHubAdDate);
+                    if (data.gachaFansHubFeatured !== undefined) setGachaFansHubFeatured(data.gachaFansHubFeatured);
+                    if (data.gachaFansHubFeaturedDate !== undefined) setGachaFansHubFeaturedDate(data.gachaFansHubFeaturedDate);
+                    if (data.gachaFansDiscovery !== undefined) setGachaFansDiscovery(data.gachaFansDiscovery);
+                    if (data.discoveryThemeFilter !== undefined) setDiscoveryThemeFilter(data.discoveryThemeFilter);
+                    if (data.discoveryCacheSize !== undefined) setDiscoveryCacheSize(data.discoveryCacheSize);
+                    if (data.isSurpriseMode !== undefined) setIsSurpriseMode(data.isSurpriseMode);
+                    if (data.silhouetteMode !== undefined) setSilhouetteMode(data.silhouetteMode);
+                    if (data.enableTtsStandard !== undefined) setEnableTtsStandard(data.enableTtsStandard);
+                    if (data.enableTtsGroup !== undefined) setEnableTtsGroup(data.enableTtsGroup);
+                    if (data.ttsAutoPlay !== undefined) setTtsAutoPlay(data.ttsAutoPlay);
+                    if (data.ttsCacheLimit !== undefined) setTtsCacheLimit(data.ttsCacheLimit);
+                    if (data.ttsConfig !== undefined) setTtsConfig(data.ttsConfig);
+                    if (data.ttsUseForge !== undefined) setTtsUseForge(data.ttsUseForge);
+                    if (data.msgThirst !== undefined) setMsgThirst(data.msgThirst);
+                    if (data.genderPrefs) setGenderPrefs(data.genderPrefs);
+                    if (data.hasSeenLateNightWarning !== undefined) setHasSeenLateNightWarning(data.hasSeenLateNightWarning);
+                    if (data.sparkTokens !== undefined) setSparkTokens(data.sparkTokens);
+                    if (data.hasSeenHubAd !== undefined) setHasSeenHubAd(data.hasSeenHubAd);
+                    if (data.hasSeenMeowAd !== undefined) setHasSeenMeowAd(data.hasSeenMeowAd);
+                    if (data.hasSeenSysCtrlAd !== undefined) setHasSeenSysCtrlAd(data.hasSeenSysCtrlAd);
+                    if (data.hasSeenCardSyncAd !== undefined) setHasSeenCardSyncAd(data.hasSeenCardSyncAd);
+                    if (data.hasSeenV28Ad !== undefined) setHasSeenV28Ad(data.hasSeenV28Ad);
+                    if (data.achievements !== undefined) setAchievements(data.achievements);
+                    if (data.lastDailyCheckin !== undefined) setLastDailyCheckin(data.lastDailyCheckin);
+                    if (data.hasSeenTutorial !== undefined) setHasSeenTutorial(data.hasSeenTutorial);
+                    if (data.seenTutorialVersion !== undefined) setSeenTutorialVersion(data.seenTutorialVersion);
+                    if (data.dismissedUpdateVersion !== undefined) setDismissedUpdateVersion(data.dismissedUpdateVersion);
+                    if (data.hasCollectedFirstTutorialSpark !== undefined) setHasCollectedFirstTutorialSpark(data.hasCollectedFirstTutorialSpark);
+                    if (data.collectedTutorialRewards !== undefined) setCollectedTutorialRewards(data.collectedTutorialRewards);
+                    if (data.imagePrefix !== undefined) setImagePrefix(data.imagePrefix);
+                    if (data.bannedTags !== undefined) {
+                        setBannedTags(parseTagsSafe(data.bannedTags));
+                    }
+                    if (data.bannedLyrics !== undefined) setBannedLyrics(data.bannedLyrics);
+                    if (data.dawProfanity !== undefined) setDawProfanity(data.dawProfanity);
+                    if (data.dawTopic !== undefined) setDawTopic(Array.isArray(data.dawTopic) ? data.dawTopic : [data.dawTopic]);
+                    if (data.pinnedChatBgs) setPinnedChatBgs(data.pinnedChatBgs);
+                    if (data.minigameHighScore !== undefined) setMinigameHighScore(data.minigameHighScore);
 
-                if (data.swipes > 0 || data.explicitMode > 0 || data.degenMode || data.hasSeenLateNightWarning) {
-                    setHasSeenLateNightWarning(true);
-                }
-                if (data.explicitMode > 0 || data.degenMode) {
-                    setIsLateNightUnlocked(true);
-                }
-                if (data.proactiveOffline !== undefined) setProactiveOffline(data.proactiveOffline);
-                if (data.proactiveFavoritesOnly !== undefined) setProactiveFavoritesOnly(data.proactiveFavoritesOnly);
-                if (data.enableAtmosphere !== undefined) setEnableAtmosphere(data.enableAtmosphere);
-                if (data.enableMp3Compression !== undefined) setEnableMp3Compression(data.enableMp3Compression);
-                if (data.cinematicChatBg !== undefined) setCinematicChatBg(data.cinematicChatBg);
-                if (data.showFullHistory !== undefined) setShowFullHistory(data.showFullHistory);
-                if (data.appLanguage !== undefined) setAppLanguage(data.appLanguage);
-                if (data.pauseBetweenSwipes !== undefined) setPauseBetweenSwipes(data.pauseBetweenSwipes);
-                if (data.chatContextLimit !== undefined) setChatContextLimit(data.chatContextLimit);
-                if (data.groupChatContextLimit !== undefined) setGroupChatContextLimit(data.groupChatContextLimit);
-                if (data.chatProfileDetail !== undefined) setChatProfileDetail(data.chatProfileDetail);
-                if (data.groupProfileDetail !== undefined) setGroupProfileDetail(data.groupProfileDetail);
-                if (data.tokenPreset !== undefined) setTokenPreset(data.tokenPreset);
-                if (data.chatStyleMode !== undefined) setChatStyleMode(data.chatStyleMode);
-                if (data.groupChatStyleMode !== undefined) setGroupChatStyleMode(data.groupChatStyleMode);
-                if (data.spriteExplicitMode !== undefined) setSpriteExplicitMode(data.spriteExplicitMode); // ✨ MIKA'S FIX: LOAD THE STATE!
-                if (data.monsterAestheticMode !== undefined) setMonsterAestheticMode(data.monsterAestheticMode);
-                if (data.actionTextColor !== undefined) setActionTextColor(data.actionTextColor);
-                if (data.mediaChunkSize !== undefined) setMediaChunkSize(data.mediaChunkSize);
-                if (data.groupChatFlow !== undefined) setGroupChatFlow(data.groupChatFlow);
-                if (data.groupChatPause !== undefined) setGroupChatPause(data.groupChatPause);
-                if (data.backgroundSpooling !== undefined) setBackgroundSpooling(data.backgroundSpooling);
-                if (data.useLaylaPersona !== undefined) setUseLaylaPersona(data.useLaylaPersona);
-                if (data.customUserProfile) setCustomUserProfile(data.customUserProfile);
-                if (data.ssrPityCount !== undefined) setSsrPityCount(data.ssrPityCount);
+                    if (data.swipes > 0 || data.explicitMode > 0 || data.degenMode || data.hasSeenLateNightWarning) {
+                        setHasSeenLateNightWarning(true);
+                    }
+                    if (data.explicitMode > 0 || data.degenMode) {
+                        setIsLateNightUnlocked(true);
+                    }
+                    if (data.proactiveOffline !== undefined) setProactiveOffline(data.proactiveOffline);
+                    if (data.proactiveFavoritesOnly !== undefined) setProactiveFavoritesOnly(data.proactiveFavoritesOnly);
+                    if (data.enableAtmosphere !== undefined) setEnableAtmosphere(data.enableAtmosphere);
+                    if (data.enableMp3Compression !== undefined) setEnableMp3Compression(data.enableMp3Compression);
+                    if (data.cinematicChatBg !== undefined) setCinematicChatBg(data.cinematicChatBg);
+                    if (data.showFullHistory !== undefined) setShowFullHistory(data.showFullHistory);
+                    if (data.appLanguage !== undefined) setAppLanguage(data.appLanguage);
+                    if (data.pauseBetweenSwipes !== undefined) setPauseBetweenSwipes(data.pauseBetweenSwipes);
+                    if (data.chatContextLimit !== undefined) setChatContextLimit(data.chatContextLimit);
+                    if (data.groupChatContextLimit !== undefined) setGroupChatContextLimit(data.groupChatContextLimit);
+                    if (data.chatProfileDetail !== undefined) setChatProfileDetail(data.chatProfileDetail);
+                    if (data.groupProfileDetail !== undefined) setGroupProfileDetail(data.groupProfileDetail);
+                    if (data.tokenPreset !== undefined) setTokenPreset(data.tokenPreset);
+                    if (data.chatStyleMode !== undefined) setChatStyleMode(data.chatStyleMode);
+                    if (data.groupChatStyleMode !== undefined) setGroupChatStyleMode(data.groupChatStyleMode);
+                    if (data.spriteExplicitMode !== undefined) setSpriteExplicitMode(data.spriteExplicitMode);
+                    if (data.monsterAestheticMode !== undefined) setMonsterAestheticMode(data.monsterAestheticMode);
+                    if (data.actionTextColor !== undefined) setActionTextColor(data.actionTextColor);
+                    if (data.mediaChunkSize !== undefined) setMediaChunkSize(data.mediaChunkSize);
+                    if (data.groupChatFlow !== undefined) setGroupChatFlow(data.groupChatFlow);
+                    if (data.groupChatPause !== undefined) setGroupChatPause(data.groupChatPause);
+                    if (data.backgroundSpooling !== undefined) setBackgroundSpooling(data.backgroundSpooling);
+                    if (data.useLaylaPersona !== undefined) setUseLaylaPersona(data.useLaylaPersona);
+                    if (data.customUserProfile) setCustomUserProfile(data.customUserProfile);
+                    if (data.ssrPityCount !== undefined) setSsrPityCount(data.ssrPityCount);
 
-                if (data.selectedChara) {
-                    setSelectedChara(data.selectedChara);
-                    loadedChara = true;
-                }
-                if (data.recentNames) setRecentNames(data.recentNames);
+                    if (data.selectedChara) {
+                        setSelectedChara(data.selectedChara);
+                        loadedChara = true;
+                    }
+                    if (data.recentNames) setRecentNames(data.recentNames);
 
-                // ✨ MIKA'S HOST SYNC FIX: Actually tell the Layla bridge to switch engines!
-                if (data.selectedEngine && data.selectedEngine !== 'Default (Auto)') {
-                    try {
-                        const engineRes = await layla.chat.setInferenceEngine(data.selectedEngine);
-                        if (engineRes && engineRes.success) {
-                            setSelectedEngine(data.selectedEngine);
-                        } else {
+                    // ✨ MIKA'S HOST SYNC FIX: Switch inference engine if needed
+                    if (data.selectedEngine && data.selectedEngine !== 'Default (Auto)') {
+                        try {
+                            const engineRes = await layla.chat.setInferenceEngine(data.selectedEngine);
+                            if (engineRes && engineRes.success) {
+                                setSelectedEngine(data.selectedEngine);
+                            } else {
+                                setSelectedEngine('Default (Auto)');
+                            }
+                        } catch (e) {
                             setSelectedEngine('Default (Auto)');
-                            console.warn("[M.I.K.A] Saved engine missing. Resetting to default.");
                         }
-                    } catch (e) {
+                    } else {
                         setSelectedEngine('Default (Auto)');
                     }
-                } else {
-                    setSelectedEngine('Default (Auto)');
+
+                    if (data.selectedImageModel) setSelectedImageModel(data.selectedImageModel);
+
+                    setIsGenerating(false);
+
+                    const localSeenVer = data.seenTutorialVersion !== undefined ? data.seenTutorialVersion : (data.hasSeenTutorial ? 1.0 : 0);
+                    const needsUpdate = localSeenVer > 0 && localSeenVer < TUTORIAL_VERSION && data.dismissedUpdateVersion < TUTORIAL_VERSION;
+
+                    const updateCard = {
+                        id: 'intro', name: 'System Update', age: `v${TUTORIAL_VERSION}`, gradient: ['#171226', '#00FF41'],
+                        description: 'M.I.K.A. Engine has been updated! New features have been added to the neural link. Replay the tutorial from the Settings menu to learn about them and claim your bonus Sparks!',
+                        personality: 'System proxy.', tags: ['Update', 'Available', 'Check Settings'], likes: [], dislikes: [], quirks: [],
+                        imageUrl: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzBCMDkxNCIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjMwIiBmaWxsPSJub25lIiBzdHJva2U9IiMwMEZGNDEiIHN0cm9rZS13aWR0aD0iNCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1zaXplPSIzMCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+4pyoPC90ZXh0Pjwvc3ZnPg==",
+                        greeting: "I've learned some new tricks, Master! Check the tutorial!"
+                    };
+
+                    const pauseCard = {
+                        id: 'intro', name: 'Engine Paused', age: '⏸', gradient: ['#171226', '#00E5FF'],
+                        description: 'Generation is holding. Check your messages, tweak your settings, and swipe when ready!',
+                        personality: 'System proxy.', tags: ['Holding', 'Swipe', 'To Resume'], likes: [], dislikes: [], quirks: [],
+                        imageUrl: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzBCMDkxNCIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjMwIiBmaWxsPSJub25lIiBzdHJva2U9IiMwMEU1RkYiIHN0cm9rZS13aWR0aD0iNCIvPjxwYXRoIGQ9Ik0zOCwzNSBoOCB2MzAgaC04IHogTTU0LDM1IGg4IHYzMCBoLTggeiIgZmlsbD0iIzAwRTVGRiIvPjwvc3ZnPg==",
+                        greeting: "Ready when you are, Master!"
+                    };
+
+                    let finalQueue = [];
+                    if (data.queue && Array.isArray(data.queue) && data.queue.length > 0) {
+                        finalQueue = data.queue
+                            .filter(w => w && typeof w === 'object' && w.id !== 'intro')
+                            .map(w => ({ ...w, isRegenerating: false, regenStatus: '', regenStep: 0, regenTotalSteps: 0 }));
+                        // Strictly clamp active queue to at most 1 card! No background pre-buffering!
+                        if (finalQueue.length > 1) {
+                            finalQueue = [finalQueue[0]];
+                        }
+                    }
+
+                    if (needsUpdate) {
+                        finalQueue = [updateCard];
+                        setCurrentGeneration(isChatBoot ? { phase: 'stopped' } : null);
+                    } else if (isChatBoot || data.pauseBetweenSwipes) {
+                        finalQueue = [pauseCard];
+                        setCurrentGeneration(null);
+                    } else {
+                        if (finalQueue.length === 0) setCurrentGeneration({ phase: 'stopped' });
+                        else setCurrentGeneration(isChatBoot ? { phase: 'stopped' } : null);
+                    }
+
+                    setQueue(finalQueue);
+                } catch (err) {
+                    console.warn("[M.I.K.A SQL] Settings hydration error:", err);
                 }
-
-                if (data.selectedImageModel) setSelectedImageModel(data.selectedImageModel);
-
-                setIsGenerating(false);
-
-                const localSeenVer = data.seenTutorialVersion !== undefined ? data.seenTutorialVersion : (data.hasSeenTutorial ? 1.0 : 0);
-                const needsUpdate = localSeenVer > 0 && localSeenVer < TUTORIAL_VERSION && data.dismissedUpdateVersion < TUTORIAL_VERSION;
-
-                const updateCard = {
-                    id: 'intro', name: 'System Update', age: `v${TUTORIAL_VERSION}`, gradient: ['#171226', '#00FF41'],
-                    description: 'M.I.K.A. Engine has been updated! New features have been added to the neural link. Replay the tutorial from the Settings menu to learn about them and claim your bonus Sparks!',
-                    personality: 'System proxy.', tags: ['Update', 'Available', 'Check Settings'], likes: [], dislikes: [], quirks: [],
-                    imageUrl: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzBCMDkxNCIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjMwIiBmaWxsPSJub25lIiBzdHJva2U9IiMwMEZGNDEiIHN0cm9rZS13aWR0aD0iNCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1zaXplPSIzMCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+4pyoPC90ZXh0Pjwvc3ZnPg==",
-                    greeting: "I've learned some new tricks, Master! Check the tutorial!"
-                };
-
-                const pauseCard = {
-                    id: 'intro', name: 'Engine Paused', age: '⏸', gradient: ['#171226', '#00E5FF'],
-                    description: 'Generation is holding. Check your messages, tweak your settings, and swipe when ready!',
-                    personality: 'System proxy.', tags: ['Holding', 'Swipe', 'To Resume'], likes: [], dislikes: [], quirks: [],
-                    imageUrl: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzBCMDkxNCIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjMwIiBmaWxsPSJub25lIiBzdHJva2U9IiMwMEU1RkYiIHN0cm9rZS13aWR0aD0iNCIvPjxwYXRoIGQ9Ik0zOCwzNSBoOCB2MzAgaC04IHogTTU0LDM1IGg4IHYzMCBoLTggeiIgZmlsbD0iIzAwRTVGRiIvPjwvc3ZnPg==",
-                    greeting: "Ready when you are, Master!"
-                };
-
-                let finalQueue = [];
-                if (data.queue && data.queue.length > 0) {
-                    finalQueue = data.queue.map(w => ({ ...w, isRegenerating: false, regenStatus: '', regenStep: 0, regenTotalSteps: 0 }));
-                    finalQueue = finalQueue.filter(w => w.id !== 'intro');
-                }
-
-                if (needsUpdate) {
-                    finalQueue.unshift(updateCard);
-                    setCurrentGeneration(isChatBoot ? { phase: 'stopped' } : null);
-                } else if (isChatBoot || data.pauseBetweenSwipes) {
-                    finalQueue.unshift(pauseCard);
-                    setCurrentGeneration(null);
-                } else {
-                    if (finalQueue.length === 0) setCurrentGeneration({ phase: 'stopped' });
-                    else setCurrentGeneration(isChatBoot ? { phase: 'stopped' } : null);
-                }
-
-                setQueue(finalQueue);
             }
 
             // 2. Load Themes from SQLite
-            const themesRes = await layla.db.executeSql("SELECT val FROM app_state WHERE key = 'themes_data'", []);
-            if (themesRes?.rows?.length > 0 && themesRes.rows[0].val) {
-                const loadedThemes = JSON.parse(themesRes.rows[0].val);
-                // ✨ MIKA'S FIX: Inject new native themes (like Music) if they are missing from the old save!
-                if (!loadedThemes['music_bass']) loadedThemes['music_bass'] = DEFAULT_THEMES['music_bass'];
-                if (!loadedThemes['music_rock']) loadedThemes['music_rock'] = DEFAULT_THEMES['music_rock'];
-                if (!loadedThemes['music_chill']) loadedThemes['music_chill'] = DEFAULT_THEMES['music_chill'];
-                setThemes(loadedThemes);
+            try {
+                const themesRes = await layla.db.executeSql("SELECT val FROM app_state WHERE key = 'themes_data'", []);
+                if (themesRes?.rows?.length > 0) {
+                    const row = themesRes.rows.item ? themesRes.rows.item(0) : themesRes.rows[0];
+                    if (row && row.val) {
+                        try {
+                            const loadedThemes = typeof row.val === 'string' ? JSON.parse(row.val) : row.val;
+                            if (loadedThemes && typeof loadedThemes === 'object') {
+                                if (!loadedThemes['music_bass']) loadedThemes['music_bass'] = DEFAULT_THEMES['music_bass'];
+                                if (!loadedThemes['music_rock']) loadedThemes['music_rock'] = DEFAULT_THEMES['music_rock'];
+                                if (!loadedThemes['music_chill']) loadedThemes['music_chill'] = DEFAULT_THEMES['music_chill'];
+                                setThemes(loadedThemes);
+                            }
+                        } catch (e) {
+                            console.warn("[M.I.K.A SQL] Failed to parse themes_data:", e);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("[M.I.K.A SQL] Themes query error:", err);
             }
 
             // 3. Load History from SQLite
-            const historyRes = await layla.db.executeSql("SELECT val FROM app_state WHERE key = 'history_data'");
-            if (historyRes?.rows?.length > 0 && historyRes.rows[0].val) {
-                const loadedHistory = JSON.parse(historyRes.rows[0].val);
-                sanitizeMediaPaths(loadedHistory);
-                setSessionHistory(loadedHistory);
+            try {
+                const historyRes = await layla.db.executeSql("SELECT val FROM app_state WHERE key = 'history_data'", []);
+                if (historyRes?.rows?.length > 0) {
+                    const row = historyRes.rows.item ? historyRes.rows.item(0) : historyRes.rows[0];
+                    if (row && row.val) {
+                        try {
+                            const loadedHistory = typeof row.val === 'string' ? JSON.parse(row.val) : row.val;
+                            if (Array.isArray(loadedHistory)) {
+                                sanitizeMediaPaths(loadedHistory);
+                                setSessionHistory(loadedHistory);
+                            }
+                        } catch (e) {
+                            console.warn("[M.I.K.A SQL] Failed to parse history_data:", e);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("[M.I.K.A SQL] History query error:", err);
             }
 
             // ✨ Load Tape Archive
-            const archiveRes = await layla.db.executeSql("SELECT val FROM app_state WHERE key = 'tape_archive'", []);
-            if (archiveRes?.rows?.length > 0 && archiveRes.rows[0].val) {
-                setTapeArchive(JSON.parse(archiveRes.rows[0].val) || []);
+            try {
+                const archiveRes = await layla.db.executeSql("SELECT val FROM app_state WHERE key = 'tape_archive'", []);
+                if (archiveRes?.rows?.length > 0) {
+                    const row = archiveRes.rows.item ? archiveRes.rows.item(0) : archiveRes.rows[0];
+                    if (row && row.val) {
+                        try {
+                            const loadedArchive = typeof row.val === 'string' ? JSON.parse(row.val) : row.val;
+                            setTapeArchive(Array.isArray(loadedArchive) ? loadedArchive : []);
+                        } catch (e) {
+                            console.warn("[M.I.K.A SQL] Failed to parse tape_archive:", e);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("[M.I.K.A SQL] Tape archive query error:", err);
             }
 
             // 4. Load Inbox from SQLite
             let loadedInbox = {};
-            // ✨ MIKA'S FIX: Fetch IDs first to prevent Android CursorWindow Out-of-Memory crashes!
-            const idsRes = await layla.db.executeSql("SELECT id FROM chats", []);
-            if (idsRes?.rows?.length > 0) {
-                for (const idRow of idsRes.rows) {
-                    const chatRes = await layla.db.executeSql("SELECT data FROM chats WHERE id = ?", [idRow.id]);
-                    if (chatRes?.rows?.length > 0 && chatRes.rows[0].data) {
-                        try {
-                            const chatData = JSON.parse(chatRes.rows[0].data);
-                            sanitizeMediaPaths(chatData);
-                            const limit = chatData.isGroup ? 1000 : 500;
-                            if (chatData.messages && chatData.messages.length > limit) {
-                                chatData.messages = pruneMessages(chatData.messages, limit);
-                            }
-                            loadedInbox[idRow.id] = chatData;
-                        } catch (err) { }
+            try {
+                const idsRes = await layla.db.executeSql("SELECT id FROM chats", []);
+                if (idsRes?.rows?.length > 0) {
+                    for (let i = 0; i < idsRes.rows.length; i++) {
+                        const idRow = idsRes.rows.item ? idsRes.rows.item(i) : idsRes.rows[i];
+                        if (!idRow || !idRow.id) continue;
+                        const chatRes = await layla.db.executeSql("SELECT data FROM chats WHERE id = ?", [idRow.id]);
+                        const rowData = chatRes?.rows?.length > 0 ? (chatRes.rows.item ? chatRes.rows.item(0) : chatRes.rows[0]) : null;
+                        if (rowData && rowData.data) {
+                            try {
+                                const chatData = typeof rowData.data === 'string' ? JSON.parse(rowData.data) : rowData.data;
+                                sanitizeMediaPaths(chatData);
+                                const limit = chatData.isGroup ? 1000 : 500;
+                                if (chatData.messages && chatData.messages.length > limit) {
+                                    chatData.messages = pruneMessages(chatData.messages, limit);
+                                }
+                                loadedInbox[idRow.id] = chatData;
+                            } catch (err) { }
+                        }
                     }
                 }
+            } catch (err) {
+                console.warn("[M.I.K.A SQL] Chats query error:", err);
             }
 
             // Offline lures sync check
             if (data && data.proactiveOffline) {
-                const nowTime = Date.now();
-                for (const [id, chatData] of Object.entries(loadedInbox)) {
-                    if (chatData.scheduledLures && chatData.scheduledLures.length > 0) {
-                        const pendingLures = [];
-                        let chatChanged = false;
-                        for (const lure of chatData.scheduledLures) {
-                            if (nowTime >= lure.timestamp) {
-                                chatData.messages = chatData.messages || [];
-                                chatData.messages.push({ role: 'assistant', content: lure.text, timestamp: lure.timestamp });
-                                chatData.hasUnread = true;
-                                chatChanged = true;
-                                hasFiredLures = true;
-                            } else {
-                                pendingLures.push(lure);
+                try {
+                    const nowTime = Date.now();
+                    for (const [id, chatData] of Object.entries(loadedInbox)) {
+                        if (chatData && Array.isArray(chatData.scheduledLures) && chatData.scheduledLures.length > 0) {
+                            const pendingLures = [];
+                            let chatChanged = false;
+                            for (const lure of chatData.scheduledLures) {
+                                if (lure && typeof lure.timestamp === 'number' && nowTime >= lure.timestamp) {
+                                    chatData.messages = Array.isArray(chatData.messages) ? chatData.messages : [];
+                                    chatData.messages.push({ role: 'assistant', content: lure.text || '', timestamp: lure.timestamp });
+                                    chatData.hasUnread = true;
+                                    chatChanged = true;
+                                    hasFiredLures = true;
+                                } else if (lure) {
+                                    pendingLures.push(lure);
+                                }
+                            }
+                            if (chatChanged) {
+                                chatData.messages.sort((a, b) => ((a?.timestamp || 0) - (b?.timestamp || 0)));
+                                chatData.scheduledLures = pendingLures;
                             }
                         }
-                        if (chatChanged) {
-                            chatData.messages.sort((a, b) => a.timestamp - b.timestamp);
-                            chatData.scheduledLures = pendingLures;
-                        }
                     }
+                } catch (err) {
+                    console.warn("[M.I.K.A SQL] Lures sync warning:", err);
                 }
             }
 
@@ -3344,7 +3433,6 @@ Output strictly inside these XML tags:
 
         } catch (e) {
             console.error("[M.I.K.A SQL] Load error:", e);
-            showToast("Failed to load database records!");
         }
 
         if (hasFiredLures) {
@@ -3566,8 +3654,13 @@ Output strictly inside these XML tags:
                 let data = null;
                 if (isMigrated) {
                     const indexRes = await layla.db.executeSql("SELECT val FROM app_state WHERE key = 'index_data'", []);
-                    if (indexRes?.rows?.length > 0 && indexRes.rows[0].val) {
-                        data = JSON.parse(indexRes.rows[0].val);
+                    if (indexRes?.rows?.length > 0) {
+                        const row = indexRes.rows.item ? indexRes.rows.item(0) : indexRes.rows[0];
+                        if (row && row.val) {
+                            try {
+                                data = typeof row.val === 'string' ? JSON.parse(row.val) : row.val;
+                            } catch (e) { }
+                        }
                     }
 
                     // ✨ MIKA'S FILE SYSTEM CLEANUP DETECTOR ✨
@@ -4102,7 +4195,9 @@ OUTPUT FORMAT (Strict XML):
     };
 
     const generateNextWaifu = useCallback(async () => {
-        if (isGenerating || !layla || Object.keys(themes).length === 0) return;
+        if (isGeneratingRef.current || isGenerating || !layla || Object.keys(themes).length === 0) return;
+        if (queueRef.current && queueRef.current.length > 0) return; // ✨ STRICT SINGLE-CARD PROTOCOL: Never generate if a card is active!
+        isGeneratingRef.current = true;
         setIsGenerating(true);
         setCurrentGeneration({ phase: 'profile', responseText: '', imageStatus: '', imageStep: 0, imageTotalSteps: 1, error: null });
 
@@ -4794,7 +4889,7 @@ ${universeDirective}${canonDirective}${popCultureDirective}${customTraitModule}$
 
             newWaifu.imageUrl = imgUrl;
 
-            setQueue(prev => [...prev, newWaifu]);
+            setQueue(prev => (prev.length === 0 ? [newWaifu] : prev));
             setCurrentGeneration(null);
 
             // ✨ MIKA'S BLACK BOX CLEANUP ✨
@@ -4806,17 +4901,16 @@ ${universeDirective}${canonDirective}${popCultureDirective}${customTraitModule}$
             setTimeout(() => { const tid = typeof sourceChatId !== 'undefined' ? sourceChatId : typeof currentWaifu !== 'undefined' ? currentWaifu.id : typeof updatedWaifu !== 'undefined' ? updatedWaifu.id : typeof waifuId !== 'undefined' ? waifuId : typeof waifu !== 'undefined' ? waifu.id : typeof fullWaifu !== 'undefined' ? fullWaifu.id : typeof targetId !== 'undefined' ? targetId : typeof chatId !== 'undefined' ? chatId : typeof newId !== 'undefined' ? newId : null; handleSaveSession(true, false, tid !== null, tid); }, 500);
         } catch (error) {
             // MIKA'S FIX: Silently exit if aborted!
-
             if (error.name === 'AbortError' || error.name === 'LaylaAbortError') {
-                setIsGenerating(false);
                 return;
             }
 
-
             console.error("Failed to generate waifu:", error);
             setCurrentGeneration({ phase: 'error', error: error.message || 'Layla generation failed.', responseText: '', imageStatus: '', imageStep: 0, imageTotalSteps: 1 });
+        } finally {
+            isGeneratingRef.current = false;
+            setIsGenerating(false);
         }
-        setIsGenerating(false);
     }, [layla, selectedContext, customTags, preferences, degenMode, explicitMode, allowHybrids, allowThemeMixing, themes, isGenerating, isSurpriseMode, detailedProfiles, selectedThemeId, recentNames, genderPrefs, diverseNames, msgThirst, sessionHistory, inbox, userPersona, useLaylaPersona, customUserProfile, swipes, ssrPityCount, selectedKnownCharCategories]);
     useEffect(() => {
         // ✨ MIKA'S FIX: Route to the correct generator based on swipe mode!
@@ -4826,15 +4920,15 @@ ${universeDirective}${canonDirective}${popCultureDirective}${customTraitModule}$
                 // The music queue now safely rests on the CYBERDECK_DAW card between batches!
                 return;
             }
-            if (!isGenerating && currentGeneration?.phase !== 'error' && currentGeneration?.phase !== 'stopped') {
+            // ✨ STRICT PROTOCOL: Only generate when the queue is completely empty (user swiped away the card)!
+            // No background buffering or pre-generation when a card is present!
+            if (!isGenerating && !isGeneratingRef.current && currentGeneration?.phase !== 'error' && currentGeneration?.phase !== 'stopped') {
                 if (queue.length === 0) {
-                    generateNextWaifu();
-                } else if (autoQueue && queue.length < 2 && queue[0]?.id !== 'intro' && !pauseBetweenSwipes) {
                     generateNextWaifu();
                 }
             }
         }
-    }, [queue.length, beatQueue.length, swipeMode, appState, layla, isGenerating, autoQueue, preferences, currentGeneration, generateNextWaifu, pauseBetweenSwipes]);
+    }, [queue.length, beatQueue.length, swipeMode, appState, layla, isGenerating, preferences, currentGeneration?.phase, generateNextWaifu]);
 
     const fetchRoster = async () => {
         if (!layla) return;

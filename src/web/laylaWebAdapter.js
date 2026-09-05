@@ -201,7 +201,7 @@ export class LaylaWebSDK {
                 if (typeof window !== "undefined") {
                     window.dispatchEvent(new CustomEvent("gacha:model-changed", { detail: { modelId: this.activeEngine } }));
                 }
-                return true;
+                return { success: true, engineId: this.activeEngine };
             },
             scheduleChatMessage: async (params) => {
                 console.log("[M.I.K.A. Web] Proactive message timer scheduled:", params);
@@ -272,149 +272,178 @@ export class LaylaWebSDK {
         };
 
         // 7. Database SQL Interceptor (Polyfill for SQLite on top of Dexie)
+        const createResultSet = (results = []) => {
+            const arr = Array.isArray(results) ? [...results] : [];
+            arr.item = (i) => arr[i] || null;
+            arr.raw = () => arr;
+            return {
+                rows: arr,
+                rowsAffected: arr.length
+            };
+        };
+
         this.db = {
             executeSql: async (query, params = []) => {
-                const q = (query || "").trim();
-                const upperQ = q.toUpperCase();
+                try {
+                    const q = (query || "").trim();
+                    const upperQ = q.toUpperCase();
 
-                // 1. CREATE TABLE
-                if (upperQ.startsWith("CREATE TABLE")) {
-                    const emptyRes = { rows: { raw: () => [], length: 0, item: () => null, 0: null } };
-                    return emptyRes;
-                }
-
-                // 2. DELETE
-                if (upperQ.startsWith("DELETE FROM")) {
-                    if (upperQ.includes("CHATS")) {
-                        if (upperQ.includes("WHERE ID = ?") || upperQ.includes("WHERE ID =")) {
-                            const id = params[0] || (q.match(/WHERE\s+id\s*=\s*['"]?([^'"]+)['"]?/i)?.[1]);
-                            if (id) await db.chats.delete(String(id));
-                        } else {
-                            await db.chats.clear();
-                        }
-                    } else if (upperQ.includes("APP_STATE")) {
-                        await db.app_state.clear();
-                    } else if (upperQ.includes("APP_META")) {
-                        await db.app_meta.clear();
-                    } else if (upperQ.includes("HISTORY")) {
-                        await db.history.clear();
-                    } else if (upperQ.includes("THEMES")) {
-                        await db.themes.clear();
+                    // 1. CREATE TABLE
+                    if (upperQ.startsWith("CREATE TABLE")) {
+                        return createResultSet([]);
                     }
-                    return { rowsAffected: 1 };
-                }
 
-                // 3. SELECT
-                if (upperQ.startsWith("SELECT")) {
-                    let results = [];
-
-                    if (upperQ.includes("APP_META")) {
-                        let key = null;
-                        if (upperQ.includes("WHERE KEY = ?")) {
-                            key = params[0];
-                        } else {
-                            const match = q.match(/WHERE\s+key\s*=\s*['"]([^'"]+)['"]/i);
-                            if (match) key = match[1];
-                        }
-                        if (key) {
-                            const item = await db.app_meta.get(key);
-                            results = item ? [item] : [];
-                        } else {
-                            results = await db.app_meta.toArray();
-                        }
-                    } else if (upperQ.includes("APP_STATE")) {
-                        let key = null;
-                        if (upperQ.includes("WHERE KEY = ?")) {
-                            key = params[0];
-                        } else {
-                            const match = q.match(/WHERE\s+key\s*=\s*['"]([^'"]+)['"]/i);
-                            if (match) key = match[1];
-                        }
-                        if (key) {
-                            const item = await db.app_state.get(key);
-                            results = item ? [item] : [];
-                        } else {
-                            results = await db.app_state.toArray();
-                        }
-                    } else if (upperQ.includes("CHATS")) {
-                        if (upperQ.includes("WHERE ID = ?") || upperQ.includes("WHERE ID =")) {
-                            const id = params[0] || (q.match(/WHERE\s+id\s*=\s*['"]?([^'"]+)['"]?/i)?.[1]);
-                            if (id) {
-                                const item = await db.chats.get(String(id));
-                                results = item ? [item] : [];
+                    // 2. DELETE
+                    if (upperQ.startsWith("DELETE FROM")) {
+                        if (upperQ.includes("CHATS")) {
+                            const idMatch = upperQ.match(/WHERE\s+ID\s*=\s*\?/i);
+                            if (idMatch && params.length > 0) {
+                                const id = params[0];
+                                if (id) await db.chats.delete(String(id));
+                            } else {
+                                const id = q.match(/WHERE\s+id\s*=\s*['"]?([^'"]+)['"]?/i)?.[1];
+                                if (id) await db.chats.delete(String(id));
+                                else await db.chats.clear();
                             }
-                        } else if (upperQ.includes("SELECT ID FROM CHATS")) {
-                            const all = await db.chats.toArray();
-                            results = all.map(c => ({ id: c.id }));
-                        } else {
-                            results = await db.chats.toArray();
+                        } else if (upperQ.includes("APP_STATE")) {
+                            const keyMatch = upperQ.match(/WHERE\s+KEY\s*=\s*\?/i);
+                            if (keyMatch && params.length > 0) {
+                                await db.app_state.delete(String(params[0]));
+                            } else {
+                                const match = q.match(/WHERE\s+key\s*=\s*['"]([^'"]+)['"]/i);
+                                if (match && match[1]) await db.app_state.delete(match[1]);
+                                else await db.app_state.clear();
+                            }
+                        } else if (upperQ.includes("APP_META")) {
+                            await db.app_meta.clear();
+                        } else if (upperQ.includes("HISTORY")) {
+                            await db.history.clear();
+                        } else if (upperQ.includes("THEMES")) {
+                            await db.themes.clear();
                         }
-                    } else if (upperQ.includes("THEMES")) {
-                        results = await db.themes.toArray();
-                    } else if (upperQ.includes("HISTORY")) {
-                        results = await db.history.toArray();
+                        return { ...createResultSet([]), rowsAffected: 1 };
                     }
 
-                    const rowsObj = {
-                        raw: () => results,
-                        length: results.length,
-                        item: (i) => results[i] || null
-                    };
-                    results.forEach((row, i) => { rowsObj[i] = row; });
+                    // 3. SELECT
+                    if (upperQ.startsWith("SELECT")) {
+                        let results = [];
 
-                    return { rows: rowsObj };
-                }
+                        if (upperQ.includes("APP_META")) {
+                            let key = null;
+                            if (upperQ.match(/WHERE\s+KEY\s*=\s*\?/i)) {
+                                key = params[0];
+                            } else {
+                                const match = q.match(/WHERE\s+key\s*=\s*['"]([^'"]+)['"]/i);
+                                if (match) key = match[1];
+                            }
+                            if (key) {
+                                const item = await db.app_meta.get(String(key));
+                                results = item ? [item] : [];
+                            } else {
+                                results = await db.app_meta.toArray();
+                            }
+                        } else if (upperQ.includes("APP_STATE")) {
+                            let key = null;
+                            if (upperQ.match(/WHERE\s+KEY\s*=\s*\?/i)) {
+                                key = params[0];
+                            } else {
+                                const match = q.match(/WHERE\s+key\s*=\s*['"]([^'"]+)['"]/i);
+                                if (match) key = match[1];
+                            }
+                            if (key) {
+                                const item = await db.app_state.get(String(key));
+                                results = item ? [item] : [];
+                            } else {
+                                results = await db.app_state.toArray();
+                            }
+                        } else if (upperQ.includes("CHATS")) {
+                            if (upperQ.match(/WHERE\s+ID\s*=\s*\?/i) || upperQ.includes("WHERE ID =")) {
+                                const id = params[0] || (q.match(/WHERE\s+id\s*=\s*['"]?([^'"]+)['"]?/i)?.[1]);
+                                if (id) {
+                                    let item = await db.chats.get(String(id));
+                                    if (!item && !isNaN(Number(id))) {
+                                        item = await db.chats.get(Number(id));
+                                    }
+                                    results = item ? [item] : [];
+                                }
+                            } else if (upperQ.includes("SELECT ID FROM CHATS") || upperQ.includes("SELECT ID,")) {
+                                const all = await db.chats.toArray();
+                                results = all.map(c => ({ id: c.id }));
+                            } else {
+                                results = await db.chats.toArray();
+                            }
+                        } else if (upperQ.includes("THEMES")) {
+                            results = await db.themes.toArray();
+                        } else if (upperQ.includes("HISTORY")) {
+                            results = await db.history.toArray();
+                        }
 
-                // 4. INSERT OR REPLACE INTO
-                if (upperQ.startsWith("INSERT") || upperQ.startsWith("REPLACE")) {
-                    if (upperQ.includes("APP_META")) {
-                        let key = params[0];
-                        let val = params[1];
-                        if (params.length === 0) {
-                            const match = q.match(/VALUES\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\)/i);
-                            if (match) { key = match[1]; val = match[2]; }
-                        }
-                        if (key !== undefined) {
-                            await db.app_meta.put({ key: String(key), val: String(val) });
-                        }
-                    } else if (upperQ.includes("APP_STATE")) {
-                        let key = null;
-                        let val = null;
-                        const matchKey = q.match(/VALUES\s*\(\s*['"]([^'"]+)['"]\s*,\s*\?\s*\)/i);
-                        if (matchKey) {
-                            key = matchKey[1];
-                            val = params[0];
-                        } else if (params.length >= 2) {
-                            key = params[0];
-                            val = params[1];
-                        }
-                        if (key) {
-                            await db.app_state.put({ key: String(key), val: typeof val === 'string' ? val : JSON.stringify(val) });
-                        }
-                    } else if (upperQ.includes("CHATS")) {
-                        if (params.length >= 6) {
-                            await db.chats.put({
-                                id: String(params[0]),
-                                status: String(params[1] || ""),
-                                is_favorite: Number(params[2] || 0),
-                                affection: Number(params[3] || 0),
-                                data: typeof params[4] === 'string' ? params[4] : JSON.stringify(params[4]),
-                                updated_at: Number(params[5] || Date.now())
-                            });
-                        }
-                    } else if (upperQ.includes("THEMES")) {
-                        if (params.length >= 2) {
-                            await db.themes.put({ id: String(params[0]), data: typeof params[1] === 'string' ? params[1] : JSON.stringify(params[1]) });
-                        }
-                    } else if (upperQ.includes("HISTORY")) {
-                        if (params.length >= 1) {
-                            await db.history.add({ data: typeof params[0] === 'string' ? params[0] : JSON.stringify(params[0]) });
-                        }
+                        return createResultSet(results);
                     }
-                    return { rowsAffected: 1 };
-                }
 
-                return { rows: { raw: () => [], length: 0, item: () => null, 0: null } };
+                    // 4. INSERT OR REPLACE INTO
+                    if (upperQ.startsWith("INSERT") || upperQ.startsWith("REPLACE")) {
+                        if (upperQ.includes("APP_META")) {
+                            let key = params[0];
+                            let val = params[1];
+                            if (params.length === 0) {
+                                const match = q.match(/VALUES\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\)/i);
+                                if (match) { key = match[1]; val = match[2]; }
+                            } else if (params.length === 1) {
+                                const matchKey = q.match(/VALUES\s*\(\s*['"]([^'"]+)['"]\s*,\s*\?\s*\)/i);
+                                if (matchKey) { key = matchKey[1]; val = params[0]; }
+                            }
+                            if (key !== undefined) {
+                                await db.app_meta.put({ key: String(key), val: String(val !== undefined ? val : "") });
+                            }
+                        } else if (upperQ.includes("APP_STATE")) {
+                            let key = null;
+                            let val = null;
+                            const matchKey = q.match(/VALUES\s*\(\s*['"]([^'"]+)['"]\s*,\s*\?\s*\)/i);
+                            if (matchKey) {
+                                key = matchKey[1];
+                                val = params[0];
+                            } else if (params.length >= 2) {
+                                key = params[0];
+                                val = params[1];
+                            }
+                            if (key) {
+                                await db.app_state.put({ key: String(key), val: val !== undefined ? (typeof val === 'string' ? val : JSON.stringify(val)) : "" });
+                            }
+                        } else if (upperQ.includes("CHATS")) {
+                            if (params.length >= 1) {
+                                const id = params[0];
+                                const status = params[1] || "";
+                                const is_favorite = Number(params[2] || 0);
+                                const affection = Number(params[3] || 0);
+                                const data = typeof params[4] === 'string' ? params[4] : JSON.stringify(params[4] || {});
+                                const updated_at = Number(params[5] || Date.now());
+                                await db.chats.put({
+                                    id: String(id),
+                                    status: String(status),
+                                    is_favorite,
+                                    affection,
+                                    data,
+                                    updated_at
+                                });
+                            }
+                        } else if (upperQ.includes("THEMES")) {
+                            if (params.length >= 2) {
+                                await db.themes.put({ id: String(params[0]), data: typeof params[1] === 'string' ? params[1] : JSON.stringify(params[1]) });
+                            }
+                        } else if (upperQ.includes("HISTORY")) {
+                            if (params.length >= 1) {
+                                await db.history.add({ data: typeof params[0] === 'string' ? params[0] : JSON.stringify(params[0]) });
+                            }
+                        }
+                        return { ...createResultSet([]), rowsAffected: 1 };
+                    }
+
+                    return createResultSet([]);
+                } catch (err) {
+                    console.error("[LaylaWebSDK SQL] executeSql error:", err, query, params);
+                    return createResultSet([]);
+                }
             }
         };
 
