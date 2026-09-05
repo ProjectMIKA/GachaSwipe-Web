@@ -326,10 +326,37 @@ export async function setActiveProvider(provider) {
     return await setSetting("activeProvider", provider);
 }
 
+export async function getCustomAiEndpoint() {
+    return await getSetting("custom_ai_endpoint", "http://localhost:1234/v1");
+}
+
+export async function setCustomAiEndpoint(endpoint) {
+    return await setSetting("custom_ai_endpoint", endpoint.trim());
+}
+
+export async function getCustomAiKey() {
+    return await getSetting("custom_ai_key", "");
+}
+
+export async function setCustomAiKey(key) {
+    return await setSetting("custom_ai_key", key.trim());
+}
+
+export async function getCustomAiModel() {
+    return await getSetting("custom_ai_model", "local-model");
+}
+
+export async function setCustomAiModel(model) {
+    return await setSetting("custom_ai_model", model.trim());
+}
+
 export async function getActiveApiKey() {
     const provider = await getActiveProvider();
     if (provider === "openrouter") {
         return await getOpenRouterKey();
+    }
+    if (provider === "custom") {
+        return (await getCustomAiKey()) || "not-needed";
     }
     return await getApiKey();
 }

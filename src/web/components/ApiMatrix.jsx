@@ -8,7 +8,13 @@ import {
     getOpenRouterKey, 
     setOpenRouterKey,
     getActiveProvider,
-    setActiveProvider
+    setActiveProvider,
+    getCustomAiEndpoint,
+    setCustomAiEndpoint,
+    getCustomAiKey,
+    setCustomAiKey,
+    getCustomAiModel,
+    setCustomAiModel
 } from '../db.js';
 import { 
     cleanApiKey, 
@@ -17,7 +23,9 @@ import {
     fetchAvailableImageModels, 
     NANOGPT_IMAGE_MODELS,
     NANOGPT_CHAT_ENDPOINT,
-    OPENROUTER_CHAT_ENDPOINT
+    OPENROUTER_CHAT_ENDPOINT,
+    normalizeChatEndpoint,
+    normalizeModelsEndpoint
 } from '../aiClient.js';
 import { startOAuthFlow } from '../pkceAuth.js';
 
@@ -30,6 +38,11 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
     const activeImageModel = useSetting('image_model', 'flux-schnell');
     const customNanoEndpoint = useSetting('custom_nanogpt_endpoint', '') || '';
     const customOpenRouterEndpoint = useSetting('custom_openrouter_endpoint', '') || '';
+    const subOnlyChat = useSetting('nanogpt_sub_only_chat', false);
+    const subOnlyImage = useSetting('nanogpt_sub_only_image', false);
+    const customAiEndpoint = useSetting('custom_ai_endpoint', 'http://localhost:1234/v1') || 'http://localhost:1234/v1';
+    const customAiKey = useSetting('custom_ai_key', '') || '';
+    const customAiModel = useSetting('custom_ai_model', 'local-model') || 'local-model';
 
     // --- Local UI State ---
     const [subTab, setSubTab] = useState('chat'); // 'chat' | 'image'
@@ -40,6 +53,11 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
     const [manualOpenRouterKey, setManualOpenRouterKey] = useState('');
     const [showNanoKey, setShowNanoKey] = useState(false);
     const [showOpenRouterKey, setShowOpenRouterKey] = useState(false);
+
+    // Custom Local Setup State
+    const [customEndpointInput, setCustomEndpointInput] = useState('http://localhost:1234/v1');
+    const [customKeyInput, setCustomKeyInput] = useState('');
+    const [customModelInput, setCustomModelInput] = useState('local-model');
 
     // Custom Endpoint Overrides (inside Advanced)
     const [nanoEndpointInput, setNanoEndpointInput] = useState('');
@@ -82,6 +100,18 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
         setOpenRouterEndpointInput(customOpenRouterEndpoint);
     }, [customOpenRouterEndpoint]);
 
+    useEffect(() => {
+        if (customAiEndpoint) setCustomEndpointInput(customAiEndpoint);
+    }, [customAiEndpoint]);
+
+    useEffect(() => {
+        if (customAiKey !== undefined) setCustomKeyInput(customAiKey);
+    }, [customAiKey]);
+
+    useEffect(() => {
+        if (customAiModel) setCustomModelInput(customAiModel);
+    }, [customAiModel]);
+
     const showToast = (msg) => {
         setStatusToast(msg);
         setTimeout(() => setStatusToast(null), 3500);
@@ -114,23 +144,73 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
 
     // Reload models whenever activeProvider or respective keys change
     useEffect(() => {
-        const key = activeProvider === 'openrouter' ? openRouterKey : nanoGptKey;
+        const key = activeProvider === 'openrouter' 
+            ? openRouterKey 
+            : (activeProvider === 'custom' ? customAiKey : nanoGptKey);
         loadModelsForActiveProvider(activeProvider, key);
         loadImageModels(nanoGptKey);
-    }, [activeProvider, nanoGptKey, openRouterKey, loadModelsForActiveProvider, loadImageModels]);
+    }, [activeProvider, nanoGptKey, openRouterKey, customAiKey, customAiEndpoint, loadModelsForActiveProvider, loadImageModels]);
 
     // --- Provider Switch Handler ---
     const handleSwitchProvider = async (newProvider) => {
         await setActiveProvider(newProvider);
-        showToast(`⚡ Active Engine switched to ${newProvider === 'openrouter' ? 'OpenRouter' : 'NanoGPT'}`);
+        const providerLabel = newProvider === 'openrouter' ? 'OpenRouter' : (newProvider === 'custom' ? 'Custom / Local' : 'NanoGPT');
+        showToast(`⚡ Active Engine switched to ${providerLabel}`);
         
         // Pick smart default model if needed
         const currentSaved = await getSetting('ai_model');
-        if (!currentSaved || (newProvider === 'openrouter' && !currentSaved.includes('/')) || (newProvider === 'nanogpt' && currentSaved.startsWith('meta-llama/'))) {
-            const def = newProvider === 'openrouter' ? 'openai/gpt-4o-mini' : 'z-ai/glm-5.2';
+        if (!currentSaved || (newProvider === 'openrouter' && !currentSaved.includes('/')) || (newProvider === 'nanogpt' && currentSaved.startsWith('meta-llama/')) || newProvider === 'custom') {
+            const def = newProvider === 'openrouter' 
+                ? 'openai/gpt-4o-mini' 
+                : (newProvider === 'custom' ? (customAiModel || 'local-model') : 'z-ai/glm-5.2');
             await setSetting('ai_model', def);
             if (onModelChange) onModelChange(def);
         }
+    };
+
+    // --- Custom Local Server Handlers ---
+    const handleSaveCustomSettings = async (urlOverride, keyOverride, modelOverride) => {
+        const urlToSave = (urlOverride !== undefined ? urlOverride : customEndpointInput).trim();
+        const keyToSave = (keyOverride !== undefined ? keyOverride : customKeyInput).trim();
+        const modelToSave = (modelOverride !== undefined ? modelOverride : customModelInput).trim();
+
+        if (urlToSave) {
+            await setCustomAiEndpoint(urlToSave);
+            setCustomEndpointInput(urlToSave);
+        }
+        await setCustomAiKey(keyToSave);
+        setCustomKeyInput(keyToSave);
+        if (modelToSave) {
+            await setCustomAiModel(modelToSave);
+            setCustomModelInput(modelToSave);
+            if (activeProvider === 'custom') {
+                await setSetting('ai_model', modelToSave);
+                if (onModelChange) onModelChange(modelToSave);
+            }
+        }
+        showToast('💾 Custom Local Server configuration saved!');
+        if (activeProvider === 'custom') {
+            loadModelsForActiveProvider('custom', keyToSave);
+        }
+    };
+
+    const handleApplyPreset = async (presetType) => {
+        let url = 'http://localhost:1234/v1';
+        let defModel = 'local-model';
+        if (presetType === 'lmstudio') {
+            url = 'http://localhost:1234/v1';
+            defModel = 'local-model';
+        } else if (presetType === 'ollama') {
+            url = 'http://localhost:11434/v1';
+            defModel = 'llama3.2';
+        } else if (presetType === 'localai') {
+            url = 'http://localhost:8080/v1';
+            defModel = 'gpt-4';
+        }
+        setCustomEndpointInput(url);
+        setCustomModelInput(defModel);
+        await handleSaveCustomSettings(url, customKeyInput, defModel);
+        showToast(`🦙 Applied ${presetType.toUpperCase()} preset (${url})`);
     };
 
     // --- PKCE OAuth Connect Action ---
@@ -220,6 +300,21 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
         showToast(`🎨 Image model activated: ${modelId}`);
     };
 
+    const handleToggleSubOnlyChat = async () => {
+        const next = !subOnlyChat;
+        await setSetting('nanogpt_sub_only_chat', next);
+        showToast(next ? '💎 Filter active: Showing NanoGPT subscription chat models only.' : '🌐 Showing all chat models.');
+    };
+
+    const handleToggleSubOnlyImage = async () => {
+        const next = !subOnlyImage;
+        await setSetting('nanogpt_sub_only_image', next);
+        showToast(next ? '💎 Filter active: Showing NanoGPT subscription image models only.' : '🎨 Showing all image models.');
+    };
+
+    const subChatCount = useMemo(() => models.filter(m => m.subscription).length, [models]);
+    const subImageCount = useMemo(() => imageModels.filter(m => m.subscription).length, [imageModels]);
+
     // --- Filtering Logic for Chat Models ---
     const providerOptions = useMemo(() => {
         const set = new Set();
@@ -232,6 +327,9 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
 
     const filteredModels = useMemo(() => {
         return models.filter(m => {
+            if (activeProvider === 'nanogpt' && subOnlyChat && !m.subscription) {
+                return false;
+            }
             const q = modelSearch.toLowerCase();
             const idMatch = m.id.toLowerCase().includes(q);
             const nameMatch = m.name ? m.name.toLowerCase().includes(q) : false;
@@ -243,18 +341,22 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
             const org = m.owned_by || (m.id.includes('/') ? m.id.split('/')[0] : 'other');
             return org.toLowerCase() === selectedProviderFilter.toLowerCase();
         });
-    }, [models, modelSearch, selectedProviderFilter]);
+    }, [models, modelSearch, selectedProviderFilter, subOnlyChat, activeProvider]);
 
     // --- Filtering Logic for Image Models ---
     const filteredImageModels = useMemo(() => {
         return imageModels.filter(m => {
+            if (subOnlyImage && !m.subscription) {
+                return false;
+            }
             const q = imageModelSearch.toLowerCase();
             const matchesQuery = m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q) || (m.desc && m.desc.toLowerCase().includes(q));
             if (!matchesQuery) return false;
             if (selectedImageCategory === 'ALL') return true;
+            if (selectedImageCategory === 'subscription') return m.subscription === true;
             return m.category === selectedImageCategory;
         });
-    }, [imageModels, imageModelSearch, selectedImageCategory]);
+    }, [imageModels, imageModelSearch, selectedImageCategory, subOnlyImage]);
 
     const isNanoConnected = Boolean(nanoGptKey && nanoGptKey.trim().length > 5);
     const isOpenRouterConnected = Boolean(openRouterKey && openRouterKey.trim().length > 5);
@@ -283,13 +385,17 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                                 fontSize: '9px', 
                                 padding: '2px 6px', 
                                 borderRadius: '4px',
-                                background: activeProvider === 'openrouter' ? 'rgba(181, 51, 255, 0.2)' : 'rgba(0, 229, 255, 0.2)',
-                                color: activeProvider === 'openrouter' ? '#b533ff' : '#00e5ff',
-                                border: `1px solid ${activeProvider === 'openrouter' ? '#b533ff' : '#00e5ff'}`,
+                                background: activeProvider === 'openrouter' 
+                                    ? 'rgba(181, 51, 255, 0.2)' 
+                                    : (activeProvider === 'custom' ? 'rgba(0, 255, 157, 0.2)' : 'rgba(0, 229, 255, 0.2)'),
+                                color: activeProvider === 'openrouter' 
+                                    ? '#b533ff' 
+                                    : (activeProvider === 'custom' ? '#00ff9d' : '#00e5ff'),
+                                border: `1px solid ${activeProvider === 'openrouter' ? '#b533ff' : (activeProvider === 'custom' ? '#00ff9d' : '#00e5ff')}`,
                                 fontWeight: 900
                             }}
                         >
-                            {activeProvider === 'openrouter' ? 'OPENROUTER' : 'NANOGPT'}
+                            {activeProvider === 'openrouter' ? 'OPENROUTER' : (activeProvider === 'custom' ? 'CUSTOM / LOCAL' : 'NANOGPT')}
                         </span>
                     </div>
                 </div>
@@ -350,7 +456,7 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                     </button>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
                     {/* --- NanoGPT Connect Card --- */}
                     <div 
                         style={{
@@ -536,6 +642,166 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                             Claude 3.5, GPT-4o, Llama 3.3 &amp; more
                         </div>
                     </div>
+
+                    {/* --- Custom / Local LMStudio Server Card --- */}
+                    <div 
+                        style={{
+                            background: activeProvider === 'custom' ? 'rgba(0, 255, 157, 0.06)' : 'rgba(255, 255, 255, 0.02)',
+                            border: activeProvider === 'custom' ? '1px solid rgba(0, 255, 157, 0.4)' : '1px dashed rgba(255, 255, 255, 0.15)',
+                            borderRadius: '6px',
+                            padding: '10px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px'
+                        }}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '10px', fontWeight: 900, color: activeProvider === 'custom' ? '#00ff9d' : 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span>🖥️</span>
+                                <span>CUSTOM / LOCAL LLM</span>
+                            </span>
+                            <span style={{ fontSize: '8.5px', color: 'rgba(255,255,255,0.4)' }}>
+                                LMStudio / Ollama
+                            </span>
+                        </div>
+
+                        {/* Server URL Input */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                                <input
+                                    type="text"
+                                    value={customEndpointInput}
+                                    onChange={e => setCustomEndpointInput(e.target.value)}
+                                    placeholder="http://localhost:1234/v1"
+                                    style={{
+                                        flex: 1,
+                                        padding: '5px 7px',
+                                        background: '#050308',
+                                        border: '1px solid rgba(0, 255, 157, 0.3)',
+                                        color: '#00ff9d',
+                                        fontSize: '9.5px',
+                                        borderRadius: '4px',
+                                        fontFamily: 'monospace'
+                                    }}
+                                />
+                                <button
+                                    onClick={() => handleSaveCustomSettings()}
+                                    title="Save Endpoint"
+                                    style={{
+                                        padding: '5px 8px',
+                                        background: 'rgba(0, 255, 157, 0.15)',
+                                        border: '1px solid #00ff9d',
+                                        color: '#00ff9d',
+                                        fontSize: '9px',
+                                        fontWeight: 'bold',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Save
+                                </button>
+                            </div>
+
+                            {/* 1-Click Presets */}
+                            <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+                                <button
+                                    onClick={() => handleApplyPreset('lmstudio')}
+                                    style={{
+                                        flex: 1,
+                                        padding: '2px 4px',
+                                        fontSize: '8px',
+                                        borderRadius: '3px',
+                                        background: 'rgba(255, 255, 255, 0.05)',
+                                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                                        color: 'rgba(255, 255, 255, 0.7)',
+                                        cursor: 'pointer'
+                                    }}
+                                    title="Set default to LMStudio (http://localhost:1234/v1)"
+                                >
+                                    LMStudio
+                                </button>
+                                <button
+                                    onClick={() => handleApplyPreset('ollama')}
+                                    style={{
+                                        flex: 1,
+                                        padding: '2px 4px',
+                                        fontSize: '8px',
+                                        borderRadius: '3px',
+                                        background: 'rgba(255, 255, 255, 0.05)',
+                                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                                        color: 'rgba(255, 255, 255, 0.7)',
+                                        cursor: 'pointer'
+                                    }}
+                                    title="Set default to Ollama (http://localhost:11434/v1)"
+                                >
+                                    Ollama
+                                </button>
+                                <button
+                                    onClick={() => handleApplyPreset('localai')}
+                                    style={{
+                                        flex: 1,
+                                        padding: '2px 4px',
+                                        fontSize: '8px',
+                                        borderRadius: '3px',
+                                        background: 'rgba(255, 255, 255, 0.05)',
+                                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                                        color: 'rgba(255, 255, 255, 0.7)',
+                                        cursor: 'pointer'
+                                    }}
+                                    title="Set default to LocalAI (http://localhost:8080/v1)"
+                                >
+                                    LocalAI
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Ping & Switch Actions */}
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <button
+                                onClick={() => handleTestPing('custom')}
+                                disabled={isPinging}
+                                style={{
+                                    flex: 1,
+                                    padding: '6px 8px',
+                                    background: 'rgba(0, 229, 255, 0.15)',
+                                    border: '1px solid #00e5ff',
+                                    color: '#00e5ff',
+                                    fontSize: '9.5px',
+                                    fontWeight: 900,
+                                    borderRadius: '4px',
+                                    cursor: isPinging ? 'wait' : 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '4px'
+                                }}
+                            >
+                                <span>⚡</span>
+                                <span>{isPinging ? 'Testing...' : 'Test Server'}</span>
+                            </button>
+                            {activeProvider !== 'custom' && (
+                                <button
+                                    onClick={() => handleSwitchProvider('custom')}
+                                    style={{
+                                        padding: '6px 8px',
+                                        background: 'rgba(0, 255, 157, 0.15)',
+                                        border: '1px solid #00ff9d',
+                                        color: '#00ff9d',
+                                        fontSize: '9.5px',
+                                        fontWeight: 900,
+                                        borderRadius: '4px',
+                                        cursor: 'pointer',
+                                        whiteSpace: 'nowrap'
+                                    }}
+                                >
+                                    Activate
+                                </button>
+                            )}
+                        </div>
+                        <div style={{ fontSize: '8px', color: 'rgba(255,255,255,0.35)', textAlign: 'center' }}>
+                            Ensure server is running &amp; CORS is enabled
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -566,7 +832,7 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                 <div 
                     style={{ 
                         display: 'grid', 
-                        gridTemplateColumns: '1fr 1fr', 
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', 
                         gap: '6px',
                         background: '#050308',
                         padding: '4px',
@@ -620,6 +886,30 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                         <span>🪐</span>
                         <span>OpenRouter Engine</span>
                         {isOpenRouterConnected && <span style={{ fontSize: '8px', color: '#00ff9d' }}>●</span>}
+                    </button>
+
+                    <button
+                        onClick={() => handleSwitchProvider('custom')}
+                        style={{
+                            padding: '9px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            background: activeProvider === 'custom' ? 'rgba(0, 255, 157, 0.2)' : 'transparent',
+                            border: activeProvider === 'custom' ? '1px solid #00ff9d' : '1px solid transparent',
+                            color: activeProvider === 'custom' ? '#00ff9d' : 'rgba(255, 255, 255, 0.5)',
+                            boxShadow: activeProvider === 'custom' ? '0 0 10px rgba(0, 255, 157, 0.25)' : 'none',
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        <span>🖥️</span>
+                        <span>Custom / Local</span>
+                        {activeProvider === 'custom' && <span style={{ fontSize: '8px', color: '#00ff9d' }}>●</span>}
                     </button>
                 </div>
             </div>
@@ -681,9 +971,44 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
             {/* SUB-VIEW 1: CHAT MODELS MATRIX */}
             {subTab === 'chat' && (
                 <div style={{ background: '#0B0914', border: '1px solid rgba(0, 255, 157, 0.3)', borderRadius: '6px', padding: '14px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <div style={{ color: '#00ff9d', fontSize: '11px', fontWeight: 'bold' }}>
-                            &gt; LIVE_CHAT_MODELS ({filteredModels.length} of {models.length})
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ color: '#00ff9d', fontSize: '11px', fontWeight: 'bold' }}>
+                                &gt; LIVE_CHAT_MODELS ({filteredModels.length} of {models.length})
+                            </div>
+                            {activeProvider === 'nanogpt' && (
+                                <button
+                                    onClick={handleToggleSubOnlyChat}
+                                    style={{
+                                        padding: '2px 8px',
+                                        fontSize: '9px',
+                                        borderRadius: '3px',
+                                        cursor: 'pointer',
+                                        border: subOnlyChat ? '1px solid #ffd700' : '1px solid rgba(255, 215, 0, 0.3)',
+                                        background: subOnlyChat ? 'rgba(255, 215, 0, 0.2)' : 'rgba(255, 215, 0, 0.05)',
+                                        color: subOnlyChat ? '#ffd700' : 'rgba(255, 215, 0, 0.65)',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        fontWeight: 'bold',
+                                        boxShadow: subOnlyChat ? '0 0 8px rgba(255, 215, 0, 0.3)' : 'none',
+                                        transition: 'all 0.15s ease'
+                                    }}
+                                    title="Toggle to view only models included in the NanoGPT Subscription Plan"
+                                >
+                                    <span>💎</span>
+                                    <span>{subOnlyChat ? 'SUBSCRIPTION ONLY' : 'ALL MODELS'}</span>
+                                    <span style={{ 
+                                        fontSize: '8px', 
+                                        background: subOnlyChat ? '#ffd700' : 'rgba(255,215,0,0.15)', 
+                                        color: subOnlyChat ? '#000' : '#ffd700', 
+                                        padding: '0 4px', 
+                                        borderRadius: '6px' 
+                                    }}>
+                                        {subChatCount}
+                                    </span>
+                                </button>
+                            )}
                         </div>
                         <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.5)' }}>
                             Active: <strong style={{ color: '#00e5ff' }}>{activeModel}</strong>
@@ -692,11 +1017,50 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
 
                     {/* Search & Provider Filter */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                        {activeProvider === 'custom' && (
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', background: 'rgba(0, 255, 157, 0.05)', border: '1px solid rgba(0, 255, 157, 0.2)', padding: '6px 8px', borderRadius: '4px' }}>
+                                <span style={{ fontSize: '9.5px', color: '#00ff9d', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                    Model ID Override:
+                                </span>
+                                <input
+                                    type="text"
+                                    value={customModelInput}
+                                    onChange={e => setCustomModelInput(e.target.value)}
+                                    placeholder="e.g. llama-3.2-3b-instruct or local-model"
+                                    style={{
+                                        flex: 1,
+                                        padding: '4px 6px',
+                                        background: '#050308',
+                                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                                        color: '#fff',
+                                        fontSize: '9.5px',
+                                        borderRadius: '3px',
+                                        fontFamily: 'monospace'
+                                    }}
+                                />
+                                <button
+                                    onClick={() => handleSaveCustomSettings(undefined, undefined, customModelInput)}
+                                    style={{
+                                        padding: '4px 8px',
+                                        fontSize: '9px',
+                                        fontWeight: 'bold',
+                                        borderRadius: '3px',
+                                        background: 'rgba(0, 255, 157, 0.2)',
+                                        border: '1px solid #00ff9d',
+                                        color: '#00ff9d',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Set Model
+                                </button>
+                            </div>
+                        )}
+
                         <input
                             type="text"
                             value={modelSearch}
                             onChange={e => setModelSearch(e.target.value)}
-                            placeholder={`Filter ${activeProvider === 'openrouter' ? 'OpenRouter' : 'NanoGPT'} models (e.g. gpt-4o, claude, llama, deepseek)...`}
+                            placeholder={`Filter ${activeProvider === 'openrouter' ? 'OpenRouter' : (activeProvider === 'custom' ? 'Local' : 'NanoGPT')} models (e.g. gpt-4o, claude, llama, deepseek)...`}
                             style={{
                                 width: '100%',
                                 padding: '7px 10px',
@@ -766,6 +1130,11 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                                                 <span style={{ fontSize: '11px', fontWeight: 'bold', color: isSelected ? '#00ff9d' : '#fff', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
                                                     {m.name || m.id}
                                                 </span>
+                                                {m.subscription && (
+                                                    <span style={{ fontSize: '8px', color: '#ffd700', background: 'rgba(255,215,0,0.15)', border: '1px solid rgba(255,215,0,0.4)', padding: '1px 4px', borderRadius: '2px', whiteSpace: 'nowrap', fontWeight: 'bold' }}>
+                                                        💎 SUB
+                                                    </span>
+                                                )}
                                                 {m.pricing && (
                                                     <span style={{ fontSize: '8.5px', color: '#ffd700', background: 'rgba(255,215,0,0.1)', padding: '1px 4px', borderRadius: '2px', whiteSpace: 'nowrap' }}>
                                                         {m.pricing}
@@ -828,9 +1197,42 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
             {/* SUB-VIEW 2: IMAGE GEN MODELS MATRIX */}
             {subTab === 'image' && (
                 <div style={{ background: '#0B0914', border: '1px solid rgba(255, 16, 122, 0.3)', borderRadius: '6px', padding: '14px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <div style={{ color: '#ff107a', fontSize: '11px', fontWeight: 'bold' }}>
-                            &gt; IMAGE_DIFFUSION_MODELS ({filteredImageModels.length} of {imageModels.length})
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ color: '#ff107a', fontSize: '11px', fontWeight: 'bold' }}>
+                                &gt; IMAGE_DIFFUSION_MODELS ({filteredImageModels.length} of {imageModels.length})
+                            </div>
+                            <button
+                                onClick={handleToggleSubOnlyImage}
+                                style={{
+                                    padding: '2px 8px',
+                                    fontSize: '9px',
+                                    borderRadius: '3px',
+                                    cursor: 'pointer',
+                                    border: subOnlyImage ? '1px solid #ffd700' : '1px solid rgba(255, 215, 0, 0.3)',
+                                    background: subOnlyImage ? 'rgba(255, 215, 0, 0.2)' : 'rgba(255, 215, 0, 0.05)',
+                                    color: subOnlyImage ? '#ffd700' : 'rgba(255, 215, 0, 0.65)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    fontWeight: 'bold',
+                                    boxShadow: subOnlyImage ? '0 0 8px rgba(255, 215, 0, 0.3)' : 'none',
+                                    transition: 'all 0.15s ease'
+                                }}
+                                title="Toggle to view only models included in the NanoGPT Subscription Plan"
+                            >
+                                <span>💎</span>
+                                <span>{subOnlyImage ? 'SUBSCRIPTION ONLY' : 'ALL MODELS'}</span>
+                                <span style={{ 
+                                    fontSize: '8px', 
+                                    background: subOnlyImage ? '#ffd700' : 'rgba(255,215,0,0.15)', 
+                                    color: subOnlyImage ? '#000' : '#ffd700', 
+                                    padding: '0 4px', 
+                                    borderRadius: '6px' 
+                                }}>
+                                    {subImageCount}
+                                </span>
+                            </button>
                         </div>
                         <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.5)' }}>
                             Active: <strong style={{ color: '#ff107a' }}>{activeImageModel}</strong>
@@ -858,7 +1260,7 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
 
                         {/* Category Buttons */}
                         <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '4px' }}>
-                            {['ALL', 'flux', 'anime', 'civitai', 'openai', 'stability'].map(cat => (
+                            {['ALL', 'subscription', 'flux', 'anime', 'civitai', 'openai', 'stability'].map(cat => (
                                 <button
                                     key={cat}
                                     onClick={() => setSelectedImageCategory(cat)}
@@ -869,12 +1271,13 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                                         border: '1px solid',
                                         cursor: 'pointer',
                                         whiteSpace: 'nowrap',
-                                        background: selectedImageCategory === cat ? 'rgba(255, 16, 122, 0.2)' : 'transparent',
-                                        borderColor: selectedImageCategory === cat ? '#ff107a' : 'rgba(255, 255, 255, 0.1)',
-                                        color: selectedImageCategory === cat ? '#ff107a' : 'rgba(255, 255, 255, 0.5)'
+                                        background: selectedImageCategory === cat ? (cat === 'subscription' ? 'rgba(255, 215, 0, 0.25)' : 'rgba(255, 16, 122, 0.2)') : 'transparent',
+                                        borderColor: selectedImageCategory === cat ? (cat === 'subscription' ? '#ffd700' : '#ff107a') : 'rgba(255, 255, 255, 0.1)',
+                                        color: selectedImageCategory === cat ? (cat === 'subscription' ? '#ffd700' : '#ff107a') : (cat === 'subscription' ? '#ffd700' : 'rgba(255, 255, 255, 0.5)'),
+                                        fontWeight: cat === 'subscription' ? 'bold' : 'normal'
                                     }}
                                 >
-                                    {cat.toUpperCase()}
+                                    {cat === 'subscription' ? `💎 SUB (${subImageCount})` : cat.toUpperCase()}
                                 </button>
                             ))}
                         </div>
@@ -912,6 +1315,11 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                                                 <span style={{ fontSize: '11px', fontWeight: 'bold', color: isSelected ? '#ff107a' : '#fff', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
                                                     {m.name || m.id}
                                                 </span>
+                                                {m.subscription && (
+                                                    <span style={{ fontSize: '8px', color: '#ffd700', background: 'rgba(255,215,0,0.15)', border: '1px solid rgba(255,215,0,0.4)', padding: '1px 4px', borderRadius: '2px', whiteSpace: 'nowrap', fontWeight: 'bold' }}>
+                                                        💎 SUB
+                                                    </span>
+                                                )}
                                                 {m.pricing && (
                                                     <span style={{ fontSize: '8.5px', color: '#ffd700', background: 'rgba(255,215,0,0.1)', padding: '1px 4px', borderRadius: '2px', whiteSpace: 'nowrap' }}>
                                                         {m.pricing}
@@ -1219,12 +1627,13 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                                 &gt; DIAGNOSTIC_PING_TESTER
                             </div>
 
-                            <div style={{ display: 'flex', gap: '8px' }}>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                 <button
                                     onClick={() => handleTestPing('nanogpt')}
                                     disabled={isPinging}
                                     style={{
                                         flex: 1,
+                                        minWidth: '100px',
                                         padding: '7px 10px',
                                         background: 'rgba(0, 229, 255, 0.1)',
                                         border: '1px solid #00e5ff',
@@ -1243,6 +1652,7 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                                     disabled={isPinging}
                                     style={{
                                         flex: 1,
+                                        minWidth: '100px',
                                         padding: '7px 10px',
                                         background: 'rgba(181, 51, 255, 0.1)',
                                         border: '1px solid #b533ff',
@@ -1254,6 +1664,25 @@ export const ApiMatrix = ({ onModelChange, onImageModelChange }) => {
                                     }}
                                 >
                                     {isPinging ? 'Pinging...' : '⚡ Ping OpenRouter'}
+                                </button>
+
+                                <button
+                                    onClick={() => handleTestPing('custom')}
+                                    disabled={isPinging}
+                                    style={{
+                                        flex: 1,
+                                        minWidth: '100px',
+                                        padding: '7px 10px',
+                                        background: 'rgba(0, 255, 157, 0.1)',
+                                        border: '1px solid #00ff9d',
+                                        color: '#00ff9d',
+                                        fontSize: '9.5px',
+                                        fontWeight: 'bold',
+                                        borderRadius: '4px',
+                                        cursor: isPinging ? 'wait' : 'pointer'
+                                    }}
+                                >
+                                    {isPinging ? 'Pinging...' : '🖥️ Ping Local Server'}
                                 </button>
                             </div>
 

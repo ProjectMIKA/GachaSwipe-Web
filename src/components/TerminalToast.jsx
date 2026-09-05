@@ -1,35 +1,92 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import * as Constants from '../data/constants.js';
 
 export const TerminalToast = ({ message, onComplete }) => {
-            const [typedText, setTypedText] = useState('');
-            const [isFading, setIsFading] = useState(false);
+    const [typedText, setTypedText] = useState('');
+    const [isFading, setIsFading] = useState(false);
 
-            useEffect(() => {
-                let i = 0;
-                setTypedText('');
-                setIsFading(false);
-                const intv = setInterval(() => {
-                    i += 1;
-                    setTypedText(message.substring(0, i));
-                    if (i >= message.length) clearInterval(intv);
-                }, 15);
-                
-                const fadeTimeout = setTimeout(() => { setIsFading(true); }, 2500);
-                const completeTimeout = setTimeout(() => { if(onComplete) onComplete(); }, 3000);
+    useEffect(() => {
+        let i = 0;
+        setTypedText('');
+        setIsFading(false);
+        const intv = setInterval(() => {
+            i += 1;
+            setTypedText(message.substring(0, i));
+            if (i >= message.length) clearInterval(intv);
+        }, 15);
+        
+        const fadeTimeout = setTimeout(() => { setIsFading(true); }, 2500);
+        const completeTimeout = setTimeout(() => { if(onComplete) onComplete(); }, 3000);
 
-                return () => { clearInterval(intv); clearTimeout(fadeTimeout); clearTimeout(completeTimeout); };
-            }, [message]); // ✨ MIKA'S FIX: Removed onComplete to prevent infinite re-render loops!
+        return () => { clearInterval(intv); clearTimeout(fadeTimeout); clearTimeout(completeTimeout); };
+    }, [message]); // ✨ MIKA'S FIX: Removed onComplete to prevent infinite re-render loops!
 
-            return (
-                <div style={{ position: 'fixed', top: '20px', left: 0, right: 0, zIndex: 99999, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
-                    <div style={{ transform: 'translateZ(0)', background: 'rgba(5, 3, 8, 0.9)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '1px solid rgba(0, 229, 255, 0.4)', borderRadius: '4px', padding: '12px 20px', color: '#00E5FF', fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: '11px', fontWeight: 'bold', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 20px rgba(0,0,0,0.8), 0 0 15px rgba(0,229,255,0.2), inset 0 0 10px rgba(0,229,255,0.1)', animation: isFading ? 'gfPhaseOut 0.5s ease forwards' : 'gfPhaseIn 0.3s ease forwards', whiteSpace: 'nowrap' }}>
-                        <span style={{ color: '#FF107A', animation: 'csd-pulse 1s infinite' }}>&gt;</span>
-                        <span>{typedText}{typedText.length < message.length ? <span style={{animation: 'cursorBlink 0.5s infinite'}}>_</span> : ''}</span>
-                    </div>
-                </div>
-            );
-        };
+    const toastElement = (
+        <div
+            className="terminal-toast-root"
+            style={{
+                position: 'fixed',
+                top: '20px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 999999,
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'flex-start',
+                pointerEvents: 'none',
+                width: 'max-content',
+                maxWidth: 'min(440px, calc(100vw - 32px))',
+                height: 'auto',
+                minHeight: 'unset',
+                maxHeight: 'none',
+                margin: 0,
+                padding: 0
+            }}
+        >
+            <div
+                className="terminal-toast-box"
+                style={{
+                    transform: 'translateZ(0)',
+                    background: 'rgba(5, 3, 8, 0.94)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    border: '1px solid rgba(0, 229, 255, 0.5)',
+                    borderRadius: '6px',
+                    padding: '10px 18px',
+                    color: '#00E5FF',
+                    fontFamily: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    letterSpacing: '0.05em',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    boxShadow: '0 8px 30px rgba(0,0,0,0.9), 0 0 15px rgba(0,229,255,0.25), inset 0 0 10px rgba(0,229,255,0.1)',
+                    animation: isFading ? 'gfPhaseOut 0.4s ease forwards' : 'gfPhaseIn 0.3s ease forwards',
+                    whiteSpace: 'normal',
+                    wordBreak: 'break-word',
+                    lineHeight: 1.4,
+                    height: 'auto',
+                    minHeight: 'unset',
+                    maxHeight: 'none',
+                    boxSizing: 'border-box'
+                }}
+            >
+                <span style={{ color: '#FF107A', animation: 'csd-pulse 1s infinite', flexShrink: 0, fontSize: '13px', fontWeight: 900 }}>&gt;</span>
+                <span style={{ flex: 1 }}>
+                    {typedText}
+                    {typedText.length < message.length ? <span style={{ animation: 'cursorBlink 0.5s infinite', color: '#00E5FF' }}>_</span> : ''}
+                </span>
+            </div>
+        </div>
+    );
+
+    if (typeof document !== 'undefined' && document.body) {
+        return createPortal(toastElement, document.body);
+    }
+    return toastElement;
+};
         // ✨ MIKA'S DUPLICATE REMOVED - Using the first definition with autoPlay support ✨
         const _CyberAudioNoteOld = ({ filename, themeColor = '#00E5FF' }) => {
             const audioRef = useRef(null);

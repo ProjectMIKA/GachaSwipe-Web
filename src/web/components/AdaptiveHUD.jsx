@@ -31,6 +31,7 @@ export const AdaptiveHUD = ({
     const [isLoadingImageModels, setIsLoadingImageModels] = useState(false);
     const [imageModelSearch, setImageModelSearch] = useState('');
     const [selectedImageCategory, setSelectedImageCategory] = useState('ALL');
+    const [subOnlyImage, setSubOnlyImage] = useState(false);
     const [apiMatrixSubTab, setApiMatrixSubTab] = useState('chat'); // 'chat' | 'image'
     const [toastMessage, setToastMessage] = useState(null);
 
@@ -160,6 +161,7 @@ export const AdaptiveHUD = ({
         // Load all GachaSwipe settings from IndexedDB
         getSetting('ai_model').then(m => { if (m) setActiveModel(m); });
         getSetting('image_model').then(m => { if (m) setActiveImageModel(m); });
+        getSetting('nanogpt_sub_only_image', false).then(v => { if (v !== null) setSubOnlyImage(Boolean(v)); });
         getSetting('chat_context_limit').then(v => { if (v) setChatContextLimit(Number(v)); });
         getSetting('group_chat_context_limit').then(v => { if (v) setGroupChatContextLimit(Number(v)); });
         getSetting('token_preset').then(v => { if (v) setTokenPreset(v); });
@@ -349,6 +351,13 @@ export const AdaptiveHUD = ({
         await setSetting('image_model', modelId);
         window.dispatchEvent(new CustomEvent('gacha:image-model-changed', { detail: { modelId } }));
         showHudToast(`Image Model activated: [${modelId}] 🎨`);
+    };
+
+    const handleToggleSubOnlyImage = async () => {
+        const next = !subOnlyImage;
+        setSubOnlyImage(next);
+        await setSetting('nanogpt_sub_only_image', next);
+        showHudToast(next ? '💎 NanoGPT subscription image models only' : '🎨 All image generation models active');
     };
 
     // Cross-component two-way synchronization broadcaster
@@ -1820,14 +1829,36 @@ export const AdaptiveHUD = ({
                                 <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                     {/* Active Image Generation Model Selector */}
                                     <div style={{ background: 'rgba(255, 16, 122, 0.08)', border: '1px solid rgba(255, 16, 122, 0.3)', borderRadius: '5px', padding: '10px' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
                                             <div>
                                                 <div style={{ fontSize: '10.5px', color: '#ff107a', fontWeight: 'bold' }}>🎨 Image Generation Engine:</div>
                                                 <div style={{ fontSize: '8.5px', color: 'rgba(255,255,255,0.5)' }}>Powers portraits, selfies & morphs</div>
                                             </div>
-                                            <span style={{ fontSize: '9px', color: '#ff107a', fontWeight: 'bold', background: 'rgba(255,16,122,0.15)', padding: '2px 6px', borderRadius: '3px' }}>
-                                                ACTIVE
-                                            </span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <button
+                                                    onClick={handleToggleSubOnlyImage}
+                                                    style={{
+                                                        padding: '2px 6px',
+                                                        fontSize: '8.5px',
+                                                        fontWeight: 'bold',
+                                                        borderRadius: '3px',
+                                                        cursor: 'pointer',
+                                                        background: subOnlyImage ? 'rgba(255, 215, 0, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                                                        border: subOnlyImage ? '1px solid #ffd700' : '1px solid rgba(255, 255, 255, 0.15)',
+                                                        color: subOnlyImage ? '#ffd700' : 'rgba(255, 255, 255, 0.6)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
+                                                    }}
+                                                    title="Toggle to show only NanoGPT subscription-included models"
+                                                >
+                                                    <span>💎</span>
+                                                    <span>{subOnlyImage ? 'SUB ONLY' : 'ALL MODELS'}</span>
+                                                </button>
+                                                <span style={{ fontSize: '9px', color: '#ff107a', fontWeight: 'bold', background: 'rgba(255,16,122,0.15)', padding: '2px 6px', borderRadius: '3px' }}>
+                                                    ACTIVE
+                                                </span>
+                                            </div>
                                         </div>
                                         <select
                                             value={activeImageModel}
@@ -1844,41 +1875,52 @@ export const AdaptiveHUD = ({
                                                 outline: 'none'
                                             }}
                                         >
-                                            <optgroup label="✨ FLUX Family (Flagship Quality)">
-                                                <option value="flux-schnell">FLUX.1 Schnell (Fast Anime & Realistic - $0.003)</option>
-                                                <option value="flux-dev">FLUX.1 Dev (Ultra Masterpiece - $0.015)</option>
-                                                <option value="flux-pro">FLUX.1 Pro (Commercial - $0.030)</option>
-                                                <option value="flux-pro/v1.1-ultra">FLUX 1.1 Pro Ultra (2K - $0.060)</option>
-                                                <option value="flux-2-dev">FLUX 2 Dev ($0.015)</option>
-                                                <option value="flux-2-pro">FLUX 2 Pro ($0.030)</option>
-                                                <option value="flux-realism">FLUX Realism ($0.015)</option>
+                                            <optgroup label="💎 NanoGPT Subscription Models (Included)">
+                                                <option value="step-image-edit-2">Step Image Edit 2 ($0.003/img - Included)</option>
+                                                <option value="z-image-turbo">Z Image Turbo ($0.003/img - Included)</option>
+                                                <option value="qwen-image">Qwen Image ($0.005/img - Included)</option>
+                                                <option value="hidream">Hidream I1 ($0.015/img - Included)</option>
+                                                <option value="chroma">Chroma ($0.010/img - Included)</option>
                                             </optgroup>
-                                            <optgroup label="🌸 Anime & CivitAI Illustrious">
-                                                <option value="crystal-clear-xl">Zuki Anime ILL (CivitAI 1581052 - $0.005)</option>
-                                                <option value="wai-illustrious-sdxl">WAI Illustrious SDXL ($0.005)</option>
-                                                <option value="persona:376130@2456367">Nova Anime XL ($0.005)</option>
-                                                <option value="aniflatmix-anime">AniFlatMix Anime ($0.005)</option>
-                                                <option value="artiwaifu-diffusion">Juggernaut XL / Waifu ($0.005)</option>
-                                                <option value="nsfw-gen-illustrious">Illustrious Derestricted ($0.005)</option>
-                                            </optgroup>
-                                            <optgroup label="🤖 OpenAI GPT Image">
-                                                <option value="dall-e-3">OpenAI DALL-E 3 ($0.040)</option>
-                                                <option value="dall-e-3-hd">OpenAI DALL-E 3 HD ($0.080)</option>
-                                                <option value="gpt-image-1.5">GPT Image 1.5 ($0.020)</option>
-                                                <option value="gpt-image-1">GPT Image 1 ($0.015)</option>
-                                            </optgroup>
-                                            <optgroup label="📸 Photoreal & SDXL">
-                                                <option value="cyberrealistic-xl">CyberRealistic SDXL ($0.005)</option>
-                                                <option value="realpony-xl">RealVisXL V5.0 ($0.005)</option>
-                                                <option value="stable-diffusion-v35-large">Stable Diffusion 3.5 Large ($0.030)</option>
-                                                <option value="fast-sdxl">Fast SDXL ($0.004)</option>
-                                            </optgroup>
-                                            <optgroup label="⚡ Next-Gen Engines">
-                                                <option value="ideogram/v4/fast">Ideogram V4 Fast ($0.020)</option>
-                                                <option value="krea/v2/large/text-to-image">Krea 2 Large ($0.020)</option>
-                                                <option value="hidream-o1-image">HiDream O1 ($0.015)</option>
-                                                <option value="seedream-v4.5">Seedream 4.5 Doubao ($0.010)</option>
-                                            </optgroup>
+                                            {!subOnlyImage && (
+                                                <>
+                                                    <optgroup label="✨ FLUX Family (Flagship Quality)">
+                                                        <option value="flux-schnell">FLUX.1 Schnell (Fast Anime & Realistic - $0.003)</option>
+                                                        <option value="flux-dev">FLUX.1 Dev (Ultra Masterpiece - $0.015)</option>
+                                                        <option value="flux-pro">FLUX.1 Pro (Commercial - $0.030)</option>
+                                                        <option value="flux-pro/v1.1-ultra">FLUX 1.1 Pro Ultra (2K - $0.060)</option>
+                                                        <option value="flux-2-dev">FLUX 2 Dev ($0.015)</option>
+                                                        <option value="flux-2-pro">FLUX 2 Pro ($0.030)</option>
+                                                        <option value="flux-realism">FLUX Realism ($0.015)</option>
+                                                    </optgroup>
+                                                    <optgroup label="🌸 Anime & CivitAI Illustrious">
+                                                        <option value="crystal-clear-xl">Zuki Anime ILL (CivitAI 1581052 - $0.005)</option>
+                                                        <option value="wai-illustrious-sdxl">WAI Illustrious SDXL ($0.005)</option>
+                                                        <option value="persona:376130@2456367">Nova Anime XL ($0.005)</option>
+                                                        <option value="aniflatmix-anime">AniFlatMix Anime ($0.005)</option>
+                                                        <option value="artiwaifu-diffusion">Juggernaut XL / Waifu ($0.005)</option>
+                                                        <option value="nsfw-gen-illustrious">Illustrious Derestricted ($0.005)</option>
+                                                    </optgroup>
+                                                    <optgroup label="🤖 OpenAI GPT Image">
+                                                        <option value="dall-e-3">OpenAI DALL-E 3 ($0.040)</option>
+                                                        <option value="dall-e-3-hd">OpenAI DALL-E 3 HD ($0.080)</option>
+                                                        <option value="gpt-image-1.5">GPT Image 1.5 ($0.020)</option>
+                                                        <option value="gpt-image-1">GPT Image 1 ($0.015)</option>
+                                                    </optgroup>
+                                                    <optgroup label="📸 Photoreal & SDXL">
+                                                        <option value="cyberrealistic-xl">CyberRealistic SDXL ($0.005)</option>
+                                                        <option value="realpony-xl">RealVisXL V5.0 ($0.005)</option>
+                                                        <option value="stable-diffusion-v35-large">Stable Diffusion 3.5 Large ($0.030)</option>
+                                                        <option value="fast-sdxl">Fast SDXL ($0.004)</option>
+                                                    </optgroup>
+                                                    <optgroup label="⚡ Next-Gen Engines">
+                                                        <option value="ideogram/v4/fast">Ideogram V4 Fast ($0.020)</option>
+                                                        <option value="krea/v2/large/text-to-image">Krea 2 Large ($0.020)</option>
+                                                        <option value="hidream-o1-image">HiDream O1 ($0.015)</option>
+                                                        <option value="seedream-v4.5">Seedream 4.5 Doubao ($0.010)</option>
+                                                    </optgroup>
+                                                </>
+                                            )}
                                         </select>
                                     </div>
 

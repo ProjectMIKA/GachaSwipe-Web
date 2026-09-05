@@ -6,6 +6,7 @@ export const WelcomeModal = ({ forceOpen = false, onClose }) => {
     const hasSeenOnboarding = useSetting('hasSeenOnboarding', null);
     const nanoGptKey = useSetting('byok_nanogpt_key', '');
     const openRouterKey = useSetting('byok_openrouter_key', '');
+    const activeProvider = useSetting('ai_provider', 'nanogpt');
     
     const [isOpen, setIsOpen] = useState(false);
     const [dontShowAgain, setDontShowAgain] = useState(true);
@@ -18,12 +19,12 @@ export const WelcomeModal = ({ forceOpen = false, onClose }) => {
             return;
         }
         // If settings have loaded and user hasn't seen onboarding yet, open modal
-        if (hasSeenOnboarding === false || (hasSeenOnboarding === null && !nanoGptKey && !openRouterKey)) {
+        if (hasSeenOnboarding === false || (hasSeenOnboarding === null && !nanoGptKey && !openRouterKey && activeProvider !== 'custom')) {
             setIsOpen(true);
         } else if (hasSeenOnboarding === true) {
             setIsOpen(false);
         }
-    }, [hasSeenOnboarding, forceOpen, nanoGptKey, openRouterKey]);
+    }, [hasSeenOnboarding, forceOpen, nanoGptKey, openRouterKey, activeProvider]);
 
     // Global listener so user can open welcome modal from HUD / Settings
     useEffect(() => {
@@ -50,10 +51,25 @@ export const WelcomeModal = ({ forceOpen = false, onClose }) => {
         }
     };
 
+    const handleConnectLocal = async () => {
+        try {
+            await setSetting('ai_provider', 'custom');
+            if (window.__GACHA_HUD__?.openHUD) {
+                window.__GACHA_HUD__.openHUD('api');
+            } else {
+                window.dispatchEvent(new CustomEvent('gacha:set-right-view', { detail: { view: 'api' } }));
+            }
+            handleDismiss();
+        } catch (err) {
+            console.error('🐾 [M.I.K.A. Onboarding] Local provider switch failed:', err);
+        }
+    };
+
     if (!isOpen) return null;
 
     const isNanoConnected = Boolean(nanoGptKey && nanoGptKey.trim().length > 5);
     const isOpenRouterConnected = Boolean(openRouterKey && openRouterKey.trim().length > 5);
+    const isCustomActive = activeProvider === 'custom';
 
     return (
         <div 
@@ -178,7 +194,7 @@ export const WelcomeModal = ({ forceOpen = false, onClose }) => {
                 </div>
 
                 {/* Body Content */}
-                <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', maxHeight: 'calc(90vh - 160px)' }}>
                     {/* BYOK Architecture Pitch */}
                     <div 
                         style={{
@@ -192,15 +208,15 @@ export const WelcomeModal = ({ forceOpen = false, onClose }) => {
                         }}
                     >
                         <div style={{ color: '#00e5ff', fontWeight: 'bold', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span>🛡️</span> Pure Bring-Your-Own-Key (BYOK)
+                            <span>🛡️</span> Pure BYOK &amp; Private Local AI
                         </div>
-                        GachaSwipe operates <strong>100% client-side in your browser</strong>. We have zero proxy servers intercepting your conversations. Your keys stay secured inside your local IndexedDB vault.
+                        GachaSwipe operates <strong>100% client-side in your browser</strong> with zero proxy servers. Connect via 1-click cloud OAuth or link your own <strong>LMStudio / Ollama local server</strong> for unlimited, free inference!
                     </div>
 
-                    {/* Quick 1-Click Connect CTAs */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {/* Quick Uplink Options */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
                         <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                            ⚡ Instant 1-Click OAuth Pairing:
+                            ⚡ Choose Your Neural Uplink:
                         </div>
 
                         {/* NanoGPT Connect CTA */}
@@ -209,7 +225,7 @@ export const WelcomeModal = ({ forceOpen = false, onClose }) => {
                             disabled={connectingProvider !== null}
                             style={{
                                 width: '100%',
-                                padding: '12px 14px',
+                                padding: '11px 13px',
                                 background: isNanoConnected ? 'rgba(0, 255, 157, 0.12)' : 'linear-gradient(135deg, rgba(0, 229, 255, 0.18) 0%, rgba(0, 255, 157, 0.15) 100%)',
                                 border: isNanoConnected ? '1px solid #00ff9d' : '1px solid #00e5ff',
                                 borderRadius: '10px',
@@ -234,7 +250,7 @@ export const WelcomeModal = ({ forceOpen = false, onClose }) => {
                             }}
                         >
                             <div>
-                                <div style={{ fontSize: '12.5px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ fontSize: '12px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <span>{isNanoConnected ? '✅' : '🔗'}</span>
                                     <span>{isNanoConnected ? 'NanoGPT Connected' : 'Connect NanoGPT'}</span>
                                     {isNanoConnected && (
@@ -243,11 +259,11 @@ export const WelcomeModal = ({ forceOpen = false, onClose }) => {
                                         </span>
                                     )}
                                 </div>
-                                <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '3px' }}>
-                                    Micro-billing, zero signup barrier, GLM-5.2 &amp; Flux image engine
+                                <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
+                                    Micro-billing, zero signup barrier, GLM-5.2 &amp; Flux images
                                 </div>
                             </div>
-                            <span style={{ fontSize: '16px', opacity: 0.7 }}>
+                            <span style={{ fontSize: '15px', opacity: 0.7 }}>
                                 {connectingProvider === 'nanogpt' ? '⌛' : '➔'}
                             </span>
                         </button>
@@ -258,7 +274,7 @@ export const WelcomeModal = ({ forceOpen = false, onClose }) => {
                             disabled={connectingProvider !== null}
                             style={{
                                 width: '100%',
-                                padding: '12px 14px',
+                                padding: '11px 13px',
                                 background: isOpenRouterConnected ? 'rgba(0, 255, 157, 0.12)' : 'linear-gradient(135deg, rgba(181, 51, 255, 0.18) 0%, rgba(255, 16, 122, 0.15) 100%)',
                                 border: isOpenRouterConnected ? '1px solid #00ff9d' : '1px solid #b533ff',
                                 borderRadius: '10px',
@@ -283,7 +299,7 @@ export const WelcomeModal = ({ forceOpen = false, onClose }) => {
                             }}
                         >
                             <div>
-                                <div style={{ fontSize: '12.5px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ fontSize: '12px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <span>{isOpenRouterConnected ? '✅' : '🔗'}</span>
                                     <span>{isOpenRouterConnected ? 'OpenRouter Connected' : 'Connect OpenRouter'}</span>
                                     {isOpenRouterConnected && (
@@ -292,19 +308,63 @@ export const WelcomeModal = ({ forceOpen = false, onClose }) => {
                                         </span>
                                     )}
                                 </div>
-                                <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '3px' }}>
-                                    One key for Claude 3.5, GPT-4o, Llama 3.3, Gemini &amp; 300+ models
+                                <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
+                                    Claude 3.5, GPT-4o, Llama 3.3, Gemini &amp; 300+ models
                                 </div>
                             </div>
-                            <span style={{ fontSize: '16px', opacity: 0.7 }}>
+                            <span style={{ fontSize: '15px', opacity: 0.7 }}>
                                 {connectingProvider === 'openrouter' ? '⌛' : '➔'}
                             </span>
+                        </button>
+
+                        {/* Local Inference Connect CTA */}
+                        <button
+                            onClick={handleConnectLocal}
+                            style={{
+                                width: '100%',
+                                padding: '11px 13px',
+                                background: isCustomActive ? 'rgba(0, 255, 157, 0.12)' : 'linear-gradient(135deg, rgba(0, 229, 255, 0.14) 0%, rgba(255, 215, 0, 0.12) 100%)',
+                                border: isCustomActive ? '1px solid #00ff9d' : '1px solid rgba(0, 229, 255, 0.45)',
+                                borderRadius: '10px',
+                                color: isCustomActive ? '#00ff9d' : '#ffffff',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                                textAlign: 'left',
+                                boxShadow: isCustomActive ? '0 0 15px rgba(0, 255, 157, 0.2)' : '0 4px 15px rgba(0, 0, 0, 0.4)'
+                            }}
+                            onMouseOver={e => {
+                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 229, 255, 0.4)';
+                            }}
+                            onMouseOut={e => {
+                                e.currentTarget.style.transform = 'none';
+                                e.currentTarget.style.boxShadow = isCustomActive ? '0 0 15px rgba(0, 255, 157, 0.2)' : '0 4px 15px rgba(0, 0, 0, 0.4)';
+                            }}
+                        >
+                            <div>
+                                <div style={{ fontSize: '12px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span>{isCustomActive ? '✅' : '🖥️'}</span>
+                                    <span>{isCustomActive ? 'Local Server Active' : 'Connect Local Server'}</span>
+                                    {isCustomActive && (
+                                        <span style={{ fontSize: '9px', background: '#00ff9d', color: '#000', padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>
+                                            ACTIVE
+                                        </span>
+                                    )}
+                                </div>
+                                <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
+                                    LMStudio (:1234), Ollama (:11434) — 100% free, private &amp; offline
+                                </div>
+                            </div>
+                            <span style={{ fontSize: '15px', opacity: 0.7 }}>➔</span>
                         </button>
                     </div>
 
                     {/* Offline / Free Simulation Note */}
                     <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textAlign: 'center', lineHeight: 1.4 }}>
-                        Don't have a key right now? No problem! GachaSwipe includes an offline neural simulation sandbox so you can explore immediately.
+                        Running local weights? Use LMStudio or Ollama for 100% private, free inference—or explore right away with our built-in offline simulation sandbox!
                     </div>
                 </div>
 

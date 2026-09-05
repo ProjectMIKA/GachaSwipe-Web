@@ -30,6 +30,31 @@ export function cleanApiKey(rawKey) {
 }
 
 /**
+ * Intelligently normalizes a custom server URL to the /chat/completions endpoint.
+ * Accepts: "http://localhost:1234", "http://localhost:1234/v1", "http://localhost:1234/v1/chat/completions"
+ */
+export function normalizeChatEndpoint(url) {
+    if (!url || !url.trim()) return "http://localhost:1234/v1/chat/completions";
+    let trimmed = url.trim().replace(/\/+$/, "");
+    if (trimmed.endsWith("/chat/completions")) return trimmed;
+    if (trimmed.endsWith("/v1")) return `${trimmed}/chat/completions`;
+    return `${trimmed}/v1/chat/completions`;
+}
+
+/**
+ * Normalizes a custom server URL to the /models discovery endpoint.
+ */
+export function normalizeModelsEndpoint(url) {
+    if (!url || !url.trim()) return "http://localhost:1234/v1/models";
+    let trimmed = url.trim().replace(/\/+$/, "");
+    if (trimmed.endsWith("/chat/completions")) {
+        return trimmed.replace(/\/chat\/completions$/, "/models");
+    }
+    if (trimmed.endsWith("/v1")) return `${trimmed}/models`;
+    return `${trimmed}/v1/models`;
+}
+
+/**
  * Dynamically resolves the active engine configuration (endpoint, API key, headers, defaults)
  * based on the activeProvider setting in Dexie.
  */
@@ -53,6 +78,15 @@ export async function getActiveEngineConfig() {
             headers["HTTP-Referer"] = window.location.origin;
             headers["X-Title"] = "GachaSwipe";
         }
+    } else if (provider === "custom") {
+        const customUrl = await getSetting("custom_ai_endpoint", "http://localhost:1234/v1");
+        endpoint = normalizeChatEndpoint(customUrl);
+        const rawKey = await getSetting("custom_ai_key", "");
+        apiKey = cleanApiKey(rawKey) || "not-needed";
+        defaultModel = (await getSetting("custom_ai_model", "local-model")) || "local-model";
+        if (apiKey && apiKey !== "not-needed") {
+            headers["Authorization"] = `Bearer ${apiKey}`;
+        }
     } else {
         // Default to NanoGPT
         const customEndpoint = await getSetting("custom_nanogpt_endpoint", "");
@@ -71,6 +105,9 @@ export async function getActiveEngineConfig() {
 
 export async function requireApiKey() {
     const config = await getActiveEngineConfig();
+    if (config.provider === "custom") {
+        return config.apiKey || "not-needed";
+    }
     if (!config.apiKey) {
         throw new AIClientError(
             `Missing API Key for ${config.provider === 'openrouter' ? 'OpenRouter' : 'NanoGPT'}. Master, please connect or paste your key into the API Matrix!`,
@@ -93,13 +130,15 @@ export async function testConnection(apiKey, targetProvider) {
     if (!raw) {
         if (provider === "openrouter") {
             raw = await getSetting("byok_openrouter_key", "");
+        } else if (provider === "custom") {
+            raw = await getSetting("custom_ai_key", "");
         } else {
             raw = await getApiKey();
         }
     }
     const key = cleanApiKey(raw);
     
-    if (!key) {
+    if (!key && provider !== "custom") {
         throw new AIClientError(
             `Missing API key for ${provider === 'openrouter' ? 'OpenRouter' : 'NanoGPT'}. Master, please paste or pair your key first!`,
             401,
@@ -271,6 +310,64 @@ export async function testConnection(apiKey, targetProvider) {
         if (err instanceof AIClientError) throw err;
         throw new AIClientError("Network connection failure: " + err.message, 0, "NETWORK_ERROR", "nanogpt");
     }
+
+    // --- CASE 3: Custom / Local LLM Server Connection Verification ---
+    if (provider === "custom") {
+        const rawEndpoint = await getSetting("custom_ai_endpoint", "http://localhost:1234/v1");
+        const endpoint = normalizeChatEndpoint(rawEndpoint);
+        const modelsEndpoint = normalizeModelsEndpoint(rawEndpoint);
+        const customKey = key || await getSetting("custom_ai_key", "");
+        const customHeaders = { "Content-Type": "application/json" };
+        if (customKey && customKey !== "not-needed") {
+            customHeaders["Authorization"] = `Bearer ${customKey}`;
+        }
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
+            const res = await fetch(modelsEndpoint, {
+                method: "GET",
+                headers: customHeaders,
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                const data = await res.json();
+                const count = Array.isArray(data?.data) ? data.data.length : (Array.isArray(data?.models) ? data.models.length : 0);
+                return {
+                    success: true,
+                    message: `⚡ Connected to Custom Server at ${rawEndpoint} (${count} models detected).`
+                };
+            }
+
+            // Fallback check against chat completions
+            const testRes = await fetch(endpoint, {
+                method: "POST",
+                headers: customHeaders,
+                body: JSON.stringify({
+                    model: "test",
+                    messages: [{ role: "user", content: "ping" }],
+                    max_tokens: 1
+                })
+            });
+            if (testRes.status === 200 || testRes.status === 400 || testRes.status === 404) {
+                return {
+                    success: true,
+                    message: `⚡ Custom Server is online & reachable at ${rawEndpoint}.`
+                };
+            }
+            throw new Error(`Server returned HTTP ${testRes.status}`);
+        } catch (err) {
+            let msg = err.message;
+            if (err.name === "AbortError") {
+                msg = `Connection timed out connecting to ${rawEndpoint}. Is LMStudio/Ollama running?`;
+            } else if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+                msg = `Unable to reach ${rawEndpoint}. Ensure LMStudio or Ollama is running and CORS is enabled!`;
+            }
+            throw new AIClientError(`Custom Server Offline: ${msg}`, 0, "NETWORK_ERROR", "custom");
+        }
+    }
 }
 
 /**
@@ -278,6 +375,50 @@ export async function testConnection(apiKey, targetProvider) {
  */
 export async function fetchAvailableModels(apiKey, targetProvider) {
     const provider = targetProvider || await getSetting("activeProvider", "nanogpt");
+    
+    // --- Custom / Local Models ---
+    if (provider === "custom") {
+        const rawEndpoint = await getSetting("custom_ai_endpoint", "http://localhost:1234/v1");
+        const modelsEndpoint = normalizeModelsEndpoint(rawEndpoint);
+        const rawKey = apiKey || await getSetting("custom_ai_key", "");
+        const customKey = cleanApiKey(rawKey);
+        const headers = { "Content-Type": "application/json" };
+        if (customKey && customKey !== "not-needed") {
+            headers["Authorization"] = `Bearer ${customKey}`;
+        }
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
+            const res = await fetch(modelsEndpoint, {
+                method: "GET",
+                headers,
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                const data = await res.json();
+                const list = data?.data || data?.models || (Array.isArray(data) ? data : null);
+                if (Array.isArray(list) && list.length > 0) {
+                    return list.map(m => ({
+                        id: m.id || m.name,
+                        name: m.name || m.id,
+                        owned_by: "local",
+                        desc: m.description || `Local model on ${rawEndpoint}`,
+                        created: m.created || Date.now() / 1000
+                    }));
+                }
+            }
+        } catch (e) {
+            console.warn("🐾 [M.I.K.A API] Custom local model discovery error:", e.message);
+        }
+
+        const savedCustomModel = await getSetting("custom_ai_model", "local-model");
+        return [
+            { id: savedCustomModel || "local-model", name: savedCustomModel || "Local Model", owned_by: "local", desc: `Active model on ${rawEndpoint}` }
+        ];
+    }
     
     // --- OpenRouter Models ---
     if (provider === "openrouter") {
@@ -332,44 +473,187 @@ export async function fetchAvailableModels(apiKey, targetProvider) {
     }
 
     try {
-        const res = await fetch("https://nano-gpt.com/api/v1/models", {
+        const [modelsRes, subRes] = await Promise.allSettled([
+            fetch("https://nano-gpt.com/api/v1/models", { method: "GET", headers }).then(async r => {
+                if (r.ok) {
+                    const data = await r.json();
+                    return data?.data || data?.models || (Array.isArray(data) ? data : []);
+                }
+                const r2 = await fetch("https://nano-gpt.com/api/models", { headers });
+                if (r2.ok) {
+                    const data2 = await r2.json();
+                    return data2?.data || data2?.models || (Array.isArray(data2) ? data2 : []);
+                }
+                throw new Error(`HTTP ${r.status}`);
+            }),
+            fetchSubscriptionModels(key)
+        ]);
+
+        const baseList = modelsRes.status === "fulfilled" && Array.isArray(modelsRes.value) && modelsRes.value.length > 0
+            ? modelsRes.value
+            : [
+                { id: "z-ai/glm-5.2", owned_by: "z-ai", created: 1770000000 },
+                { id: "z-ai/glm-5.2:thinking", owned_by: "z-ai", created: 1770000000 },
+                { id: "deepseek-chat", owned_by: "deepseek", created: 1720000000 },
+                { id: "google/gemma-4-31b-it", owned_by: "google", created: 1775088000 },
+                { id: "qwen/qwen3-coder-next", owned_by: "qwen", created: 1765152000 },
+                { id: "venice-uncensored", owned_by: "venice", created: 1759276800 },
+                { id: "mistral-small-31-24b-instruct", owned_by: "mistral", created: 1744675200 },
+                { id: "claude-3-5-sonnet", owned_by: "anthropic", created: 1718841600 },
+                { id: "openai/gpt-4o-mini", owned_by: "openai", created: 1704067200 },
+                { id: "openai/gpt-4o", owned_by: "openai", created: 1747094400 },
+                { id: "openai/o3-mini", owned_by: "openai", created: 1704067200 }
+            ];
+
+        const subList = subRes.status === "fulfilled" && Array.isArray(subRes.value) ? subRes.value : FALLBACK_NANOGPT_SUBSCRIPTION_MODELS;
+        const subIdSet = new Set(subList.map(m => m.id));
+
+        const enriched = baseList.map(m => ({
+            ...m,
+            subscription: subIdSet.has(m.id)
+        }));
+
+        const enrichedIds = new Set(enriched.map(m => m.id));
+        for (const sub of subList) {
+            if (!enrichedIds.has(sub.id)) {
+                enriched.push({
+                    id: sub.id,
+                    name: sub.name || sub.id,
+                    owned_by: sub.owned_by || (sub.id.includes("/") ? sub.id.split("/")[0] : "other"),
+                    created: sub.created || Date.now() / 1000,
+                    subscription: true
+                });
+            }
+        }
+
+        return enriched;
+    } catch (err) {
+        console.warn("🐾 [M.I.K.A API] NanoGPT model query fallback:", err.message);
+        return FALLBACK_NANOGPT_SUBSCRIPTION_MODELS;
+    }
+}
+
+/**
+ * Curated fallback subscription chat models when offline or disconnected.
+ */
+export const FALLBACK_NANOGPT_SUBSCRIPTION_MODELS = [
+    { id: "z-ai/glm-5.3-flash", name: "GLM-5.3 Flash", owned_by: "zhipu", subscription: true },
+    { id: "z-ai/glm-5.3-flash-uncensored", name: "GLM-5.3 Flash Uncensored", owned_by: "zhipu", subscription: true },
+    { id: "qwen/qwen3.8-27b-uncensored", name: "Qwen 3.8 27B Uncensored", owned_by: "qwen", subscription: true },
+    { id: "qwen/qwen3.8-27b-fable", name: "Qwen 3.8 27B Fable", owned_by: "qwen", subscription: true },
+    { id: "gemma-4-26b-a4b-uncensored", name: "Gemma 4 26B Uncensored", owned_by: "google", subscription: true },
+    { id: "deepseek-reasoner", name: "DeepSeek Reasoner", owned_by: "deepseek", subscription: true },
+    { id: "mistralai/Mistral-Nemo-Instruct-2407", name: "Mistral Nemo Instruct", owned_by: "mistral", subscription: true },
+    { id: "Sao10K/L3.3-70B-Euryale-v2.3", name: "L3.3 70B Euryale v2.3", owned_by: "meta", subscription: true },
+    { id: "venice-uncensored", name: "Venice Uncensored", owned_by: "venice", subscription: true },
+    { id: "unsloth/gemma-3-27b-it", name: "Gemma 3 27B IT", owned_by: "gemini", subscription: true },
+    { id: "nvidia/Llama-3.3-Nemotron-Super-49B-v1", name: "Nemotron Super 49B", owned_by: "nvidia", subscription: true },
+    { id: "shisa-ai/shisa-v2.1-llama3.3-70b", name: "Shisa v2.1 Llama 3.3 70B", owned_by: "shisa", subscription: true },
+    { id: "meta-llama/llama-3.2-3b-instruct", name: "Llama 3.2 3B Instruct", owned_by: "meta", subscription: true },
+    { id: "huihui-ai/DeepSeek-R1-Distill-Qwen-32B-abliterated", name: "DeepSeek R1 Qwen 32B Abliterated", owned_by: "deepseek", subscription: true },
+    { id: "inclusionai/ling-3.0-flash", name: "Ling 3.0 Flash", owned_by: "inclusionai", subscription: true },
+    { id: "xiaomi/mimo-v2.5-pro-crof", name: "MiMo v2.5 Pro", owned_by: "xiaomi", subscription: true }
+];
+
+/**
+ * Live query specifically for NanoGPT subscription chat models.
+ */
+export async function fetchSubscriptionModels(apiKey) {
+    const raw = apiKey || await getApiKey();
+    const key = cleanApiKey(raw);
+    const headers = { "Content-Type": "application/json" };
+    if (key) {
+        headers["Authorization"] = "Bearer " + key;
+        headers["x-api-key"] = key;
+    }
+
+    try {
+        const res = await fetch("https://nano-gpt.com/api/subscription/v1/models", {
             method: "GET",
             headers
         });
         if (res.ok) {
             const data = await res.json();
-            if (data && Array.isArray(data.data)) return data.data;
-            if (data && Array.isArray(data.models)) return data.models;
+            const list = data?.data || data?.models || (Array.isArray(data) ? data : null);
+            if (Array.isArray(list) && list.length > 0) {
+                return list.map(m => ({
+                    id: m.id,
+                    name: m.name || m.id,
+                    owned_by: m.owned_by || (m.id.includes("/") ? m.id.split("/")[0] : "other"),
+                    created: m.created || Date.now() / 1000,
+                    subscription: true
+                }));
+            }
         }
-        const res2 = await fetch("https://nano-gpt.com/api/models", { headers });
-        if (res2.ok) {
-            const data2 = await res2.json();
-            if (data2 && Array.isArray(data2.data)) return data2.data;
-            if (data2 && Array.isArray(data2.models)) return data2.models;
-        }
-        throw new Error(`HTTP ${res.status}`);
     } catch (err) {
-        console.warn("🐾 [M.I.K.A API] NanoGPT model query fallback:", err.message);
-        return [
-            { id: "z-ai/glm-5.2", owned_by: "z-ai", created: 1770000000 },
-            { id: "z-ai/glm-5.2:thinking", owned_by: "z-ai", created: 1770000000 },
-            { id: "deepseek-chat", owned_by: "deepseek", created: 1720000000 },
-            { id: "google/gemma-4-31b-it", owned_by: "google", created: 1775088000 },
-            { id: "qwen/qwen3-coder-next", owned_by: "qwen", created: 1765152000 },
-            { id: "venice-uncensored", owned_by: "venice", created: 1759276800 },
-            { id: "mistral-small-31-24b-instruct", owned_by: "mistral", created: 1744675200 },
-            { id: "claude-3-5-sonnet", owned_by: "anthropic", created: 1718841600 },
-            { id: "openai/gpt-4o-mini", owned_by: "openai", created: 1704067200 },
-            { id: "openai/gpt-4o", owned_by: "openai", created: 1747094400 },
-            { id: "openai/o3-mini", owned_by: "openai", created: 1704067200 }
-        ];
+        console.warn("🐾 [M.I.K.A API] NanoGPT live subscription models query fallback:", err.message);
     }
+    return FALLBACK_NANOGPT_SUBSCRIPTION_MODELS;
+}
+
+/**
+ * Dedicated 5 NanoGPT Subscription Image Generation models.
+ */
+export const NANOGPT_SUBSCRIPTION_IMAGE_MODELS = [
+    { id: "step-image-edit-2", name: "Step Image Edit 2", owned_by: "stepfun", category: "subscription", desc: "Fast text-to-image and prompt-guided image edits (Subscription Included)", pricing: "$0.003/img", subscription: true },
+    { id: "z-image-turbo", name: "Z Image Turbo", owned_by: "alibaba", category: "subscription", desc: "High-speed, cinematic image generation (Subscription Included)", pricing: "$0.003/img", subscription: true },
+    { id: "qwen-image", name: "Qwen Image", owned_by: "qwen", category: "subscription", desc: "Foundation model with complex text rendering (Subscription Included)", pricing: "$0.005/img", subscription: true },
+    { id: "hidream", name: "Hidream I1", owned_by: "hidream", category: "subscription", desc: "Hidream flagship photorealistic rendering (Subscription Included)", pricing: "$0.015/img", subscription: true },
+    { id: "chroma", name: "Chroma", owned_by: "chroma", category: "subscription", desc: "Uncensored text-to-image generation (Subscription Included)", pricing: "$0.010/img", subscription: true }
+];
+
+/**
+ * Live query specifically for NanoGPT subscription image models.
+ */
+export async function fetchSubscriptionImageModels(apiKey) {
+    const raw = apiKey || await getApiKey();
+    const key = cleanApiKey(raw);
+    const headers = { "Content-Type": "application/json" };
+    if (key) {
+        headers["Authorization"] = "Bearer " + key;
+        headers["x-api-key"] = key;
+    }
+
+    try {
+        const res = await fetch("https://nano-gpt.com/api/subscription/v1/image-models", {
+            method: "GET",
+            headers
+        });
+        if (res.ok) {
+            const data = await res.json();
+            const list = data?.data || data?.models || (Array.isArray(data) ? data : null);
+            if (Array.isArray(list) && list.length > 0) {
+                return list.map(m => {
+                    const price = m.pricing?.per_image?.["1024x1024"]
+                        || m.pricing?.per_image?.auto
+                        || m.pricing?.per_image?.portrait_16_9;
+                    const pricingStr = price ? `$${Number(price).toFixed(3)}/img` : undefined;
+                    return {
+                        id: m.id,
+                        name: m.name || m.id,
+                        owned_by: m.owned_by || "other",
+                        category: "subscription",
+                        desc: m.description || "",
+                        pricing: pricingStr || "$0.003/img",
+                        subscription: true,
+                        capabilities: m.capabilities || { image_generation: true }
+                    };
+                });
+            }
+        }
+    } catch (err) {
+        console.warn("🐾 [M.I.K.A API] NanoGPT live subscription image models query fallback:", err.message);
+    }
+    return NANOGPT_SUBSCRIPTION_IMAGE_MODELS;
 }
 
 /**
  * Curated list of top NanoGPT Image Generation models with metadata and pricing estimates.
  */
 export const NANOGPT_IMAGE_MODELS = [
+    // --- SUBSCRIPTION INCLUDED ENGINES ---
+    ...NANOGPT_SUBSCRIPTION_IMAGE_MODELS,
+
     // --- FLUX ULTRA & NEXT-GEN ---
     { id: "flux-schnell", name: "FLUX.1 Schnell", owned_by: "flux", category: "flux", desc: "Fast generation, high quality anime & portraits", pricing: "$0.003/img" },
     { id: "flux-dev", name: "FLUX.1 Dev", owned_by: "flux", category: "flux", desc: "Flagship open weights model, ultra-high fidelity", pricing: "$0.015/img" },
@@ -411,7 +695,7 @@ export const NANOGPT_IMAGE_MODELS = [
 ];
 
 /**
- * Queries live list of Image Generation models from NanoGPT API.
+ * Queries live list of Image Generation models from NanoGPT API, enriched with subscription metadata.
  */
 export async function fetchAvailableImageModels(apiKey) {
     const raw = apiKey || await getApiKey();
@@ -423,42 +707,76 @@ export async function fetchAvailableImageModels(apiKey) {
     }
 
     try {
-        const res = await fetch("https://nano-gpt.com/api/v1/images/models", {
-            method: "GET",
-            headers
+        const [imagesRes, subImagesRes] = await Promise.allSettled([
+            fetch("https://nano-gpt.com/api/v1/images/models", { method: "GET", headers }).then(async r => {
+                if (r.ok) {
+                    const data = await r.json();
+                    const list = data?.data || data?.models || (Array.isArray(data) ? data : null);
+                    if (Array.isArray(list) && list.length > 0) return list;
+                }
+                const r2 = await fetch("https://nano-gpt.com/api/v1/image-models", { method: "GET", headers });
+                if (r2.ok) {
+                    const data2 = await r2.json();
+                    const list2 = data2?.data || data2?.models || (Array.isArray(data2) ? data2 : null);
+                    if (Array.isArray(list2) && list2.length > 0) return list2;
+                }
+                throw new Error(`HTTP ${r.status}`);
+            }),
+            fetchSubscriptionImageModels(key)
+        ]);
+
+        const rawList = imagesRes.status === "fulfilled" && Array.isArray(imagesRes.value) && imagesRes.value.length > 0
+            ? imagesRes.value
+            : NANOGPT_IMAGE_MODELS;
+
+        const subList = subImagesRes.status === "fulfilled" && Array.isArray(subImagesRes.value) && subImagesRes.value.length > 0
+            ? subImagesRes.value
+            : NANOGPT_SUBSCRIPTION_IMAGE_MODELS;
+
+        const subIdSet = new Set(subList.map(m => m.id));
+
+        const mapped = rawList.map(m => {
+            const price = m.pricing?.per_image?.["1024x1024"]
+                || m.pricing?.per_image?.auto
+                || m.pricing?.per_image?.portrait_16_9;
+            const pricingStr = price ? `$${Number(price).toFixed(3)}/img` : undefined;
+
+            let category = m.category || "other";
+            const lowId = (m.id || "").toLowerCase();
+            const lowName = (m.name || "").toLowerCase();
+            const isSub = subIdSet.has(m.id) || m.subscription === true;
+
+            if (isSub) category = "subscription";
+            else if (lowId.includes("flux") || lowName.includes("flux")) category = "flux";
+            else if (lowId.includes("anime") || lowName.includes("anime") || lowId.includes("illustrious") || lowId.includes("waifu") || lowId.includes("persona")) category = "anime";
+            else if (lowId.includes("gpt") || lowId.includes("dall") || m.owned_by === "openai") category = "openai";
+            else if (lowId.includes("civitai") || lowId.includes("artiwaifu") || lowId.includes("zuki")) category = "civitai";
+            else if (lowId.includes("sd") || lowId.includes("stable-diffusion") || lowId.includes("real") || m.owned_by === "stability") category = "realistic";
+
+            return {
+                id: m.id,
+                name: m.name || m.id,
+                owned_by: m.owned_by || "other",
+                category,
+                desc: m.description || m.desc || "",
+                pricing: pricingStr || m.pricing || "$0.010/img",
+                subscription: isSub,
+                capabilities: m.capabilities || { image_generation: true }
+            };
         });
-        if (res.ok) {
-            const data = await res.json();
-            const list = data.data || data.models || (Array.isArray(data) ? data : null);
-            if (Array.isArray(list) && list.length > 0) {
-                return list.map(m => {
-                    const price = m.pricing?.per_image?.["1024x1024"]
-                        || m.pricing?.per_image?.auto
-                        || m.pricing?.per_image?.portrait_16_9;
-                    const pricingStr = price ? `$${Number(price).toFixed(3)}/img` : undefined;
 
-                    let category = m.category || "other";
-                    const lowId = (m.id || "").toLowerCase();
-                    const lowName = (m.name || "").toLowerCase();
-                    if (lowId.includes("flux") || lowName.includes("flux")) category = "flux";
-                    else if (lowId.includes("anime") || lowName.includes("anime") || lowId.includes("illustrious") || lowId.includes("waifu") || lowId.includes("persona")) category = "anime";
-                    else if (lowId.includes("gpt") || lowId.includes("dall") || m.owned_by === "openai") category = "openai";
-                    else if (lowId.includes("civitai") || lowId.includes("artiwaifu") || lowId.includes("zuki")) category = "civitai";
-                    else if (lowId.includes("sd") || lowId.includes("stable-diffusion") || lowId.includes("real") || m.owned_by === "stability") category = "realistic";
-
-                    return {
-                        id: m.id,
-                        name: m.name || m.id,
-                        owned_by: m.owned_by || "other",
-                        category,
-                        desc: m.description || "",
-                        pricing: pricingStr || "$0.010/img",
-                        capabilities: m.capabilities || { image_generation: true }
-                    };
+        // Ensure all subscription models exist in the mapped list
+        const existingIds = new Set(mapped.map(m => m.id));
+        for (const sub of subList) {
+            if (!existingIds.has(sub.id)) {
+                mapped.unshift({
+                    ...sub,
+                    subscription: true
                 });
             }
         }
-        throw new Error(`HTTP ${res.status}`);
+
+        return mapped;
     } catch (err) {
         console.warn("🐾 [M.I.K.A API] Live image models query fallback:", err.message);
         return NANOGPT_IMAGE_MODELS;
